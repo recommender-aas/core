@@ -19,7 +19,8 @@ class PopularItemsJob(val source: Source,
 
   def run(): Unit = {
     val ratingsDS = source.getRatings(ratingsTable)
-
+    // TODO how about having items_avg_rating table that we can update based on new-coming ratings?
+    // (we need current avg_rating and a number of ratings for this item)
     val allRatings = ratingsDS.collect().map(r => List(r.getInt(0), r.getInt(1), r.getDouble(2)))
 
     // TODO Need to make the code cleaner

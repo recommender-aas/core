@@ -20,7 +20,7 @@ class RatingsAPI(val ratingService: RatingService) {
 
   @ApiOperation(httpMethod = "POST", value = "Create ratings")
   @ApiImplicitParams(Array(
-    new ApiImplicitParam(name = "body", value = "Rating definition", required = true, paramType = "body", collectionFormat = "List", dataType = "gr.ml.analytics.domain.Rating")
+    new ApiImplicitParam(name = "body", value = "gr.ml.analytics.domain.Rating definition", required = true, paramType = "body", collectionFormat = "List", dataType = "gr.ml.analytics.domain.gr.ml.analytics.domain.Rating")
   ))
   @ApiResponses(Array(
     new ApiResponse(code = 201, message = "Ratings have been created"),

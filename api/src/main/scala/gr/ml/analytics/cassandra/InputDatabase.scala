@@ -18,7 +18,7 @@ class InputDatabase(override val connector: KeySpaceDef) extends Database[InputD
 
   object recommendationsModel extends ConcreteRecommendationModel with connector.Connector
 
-  object ratingModel extends ConcreteRatingModel with connector.Connector
+  object ratingModel extends ConcreteRatingModelNew with connector.Connector
 
   object schemasModel extends ConcreteSchemaModel with connector.Connector
 

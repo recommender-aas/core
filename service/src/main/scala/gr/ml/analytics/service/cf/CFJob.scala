@@ -24,7 +24,7 @@ class CFJob(val config: Config,
     */
   def run(): Unit = {
     sink.clearTable(cfPredictionsTable)
-    val allRatingsDF = source.getRatings(ratingsTable).select("userId", "itemId", "rating")
+    val allRatingsDF = source.getRatings(ratingsTable).select("userId", "itemId", "rating") // TODO Q1 (select *)
 
     val rank = params("cf_rank").toString.toInt
     val regParam = params("cf_reg_param").toString.toDouble
@@ -38,8 +38,8 @@ class CFJob(val config: Config,
 
     val model = als.fit(allRatingsDF)
 
-    for(userId <- source.getUserIdsForLastNSeconds(lastNSeconds)){
-     val notRatedPairsDF = source.getUserItemPairsToRate(userId)
+    for(userId <- source.getUserIdsForLastNSeconds(lastNSeconds)){ // TODO Q2
+     val notRatedPairsDF = source.getUserItemPairsToRate(userId) // TODO Q3 + We need some query to get all available itemIds (to insert when we have a new user...)
       val predictedRatingsDS = model.transform(notRatedPairsDF)
         .filter(col("prediction").isNotNull)
         .select("userid", "itemid", "prediction")

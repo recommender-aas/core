@@ -11,7 +11,10 @@ import gr.ml.analytics.util.RedisParamsStorage
 import gr.ml.analytics.service.contentbased.{CBFJob, LinearRegressionWithElasticNetBuilder}
 import gr.ml.analytics.service.popular.PopularItemsJob
 import gr.ml.analytics.util.{ParamsStorage, Util}
+import org.apache.spark.ml.linalg.Vectors
 import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.expressions.UserDefinedFunction
+import org.apache.spark.sql.functions.{col, concat, lit, udf}
 
 /**
   * Run Spark jobs in local mode periodically.
@@ -55,6 +58,7 @@ object LocalRunner {
     val paramsStorage: ParamsStorage = new RedisParamsStorage
 
     implicit val spark = getSparkSession
+    import spark.implicits._
 
     val params = paramsStorage.getParams()
 
@@ -80,6 +84,16 @@ object LocalRunner {
 //    val clusteringJob = ItemClusteringJob(source, sink, config)
 
     val hb = new HybridService(mainSubDir, config, source, sink, paramsStorage)
+
+/*
+    val asDense = udf((array: scala.collection.mutable.WrappedArray[Double]) => Vectors.dense(array.toArray))
+    val result = spark.read
+      .format("org.apache.spark.sql.cassandra")
+      .options(Map("table" -> "test_vector", "keyspace" -> "rs_keyspace"))
+      .load()
+      .withColumn("features_vector", asDense(col("features")))
+      .select(col("itemid"), col("features_vector").as("features"))
+*/
 
     do {
 

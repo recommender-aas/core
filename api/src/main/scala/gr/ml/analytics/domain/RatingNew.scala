@@ -4,7 +4,7 @@ import io.swagger.annotations.{ApiModel, ApiModelProperty}
 
 import scala.annotation.meta.field
 
-@ApiModel(description = "gr.ml.analytics.domain.Rating object")
+@ApiModel(description = "gr.ml.analytics.domain.gr.ml.analytics.domain.Rating object")
 case class RatingNew(
                    @(ApiModelProperty @field)(value = "unique identifier for the user")
                    userId: Int,

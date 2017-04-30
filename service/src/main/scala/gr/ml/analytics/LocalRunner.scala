@@ -1,20 +1,16 @@
 package gr.ml.analytics
 
-import java.time.{Duration, Instant, LocalDateTime, Period}
+import java.time.{Duration, Instant}
 
 import com.typesafe.config.ConfigFactory
 import gr.ml.analytics.service._
 import gr.ml.analytics.service.HybridServiceRunner.mainSubDir
-import gr.ml.analytics.service.cf.CFJob
-import gr.ml.analytics.service.clustering.ItemClusteringJob
+import gr.ml.analytics.service.cf.CFJobNew
 import gr.ml.analytics.util.RedisParamsStorage
-import gr.ml.analytics.service.contentbased.{CBFJob, LinearRegressionWithElasticNetBuilder}
-import gr.ml.analytics.service.popular.PopularItemsJob
+import gr.ml.analytics.service.contentbased.{CBFJobNew, LinearRegressionWithElasticNetBuilder}
+import gr.ml.analytics.service.popular.PopularItemsJobNew
 import gr.ml.analytics.util.{ParamsStorage, Util}
-import org.apache.spark.ml.linalg.Vectors
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.expressions.UserDefinedFunction
-import org.apache.spark.sql.functions.{col, concat, lit, udf}
 
 /**
   * Run Spark jobs in local mode periodically.
@@ -75,15 +71,15 @@ object LocalRunner {
 
     val pipeline = LinearRegressionWithElasticNetBuilder.build("")
 
-    val source = new CassandraSource(config, featureExtractor)
-    val sink = new CassandraSink(config)
+    val source = new CassandraSourceNew(config, featureExtractor)
+    val sink = new CassandraSinkNew(config)
 
-    val cfJob = CFJob(config, source, sink, params)
-    val cbfJob = CBFJob(config, source, sink, pipeline, params)
-    val popularItemsJob = PopularItemsJob(source, config)
+    val cfJob = CFJobNew(config, source, sink, params)
+    val cbfJob = CBFJobNew(config, source, sink, pipeline, params)
+    val popularItemsJob = PopularItemsJobNew(source, config)
 //    val clusteringJob = ItemClusteringJob(source, sink, config)
 
-    val hb = new HybridService(mainSubDir, config, source, sink, paramsStorage)
+    val hb = new HybridServiceNew(mainSubDir, config, source, sink, paramsStorage)
 
 /*
     val asDense = udf((array: scala.collection.mutable.WrappedArray[Double]) => Vectors.dense(array.toArray))

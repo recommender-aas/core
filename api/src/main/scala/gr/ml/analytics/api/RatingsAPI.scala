@@ -20,7 +20,7 @@ class RatingsAPI(val ratingService: RatingService) {
 
   @ApiOperation(httpMethod = "POST", value = "Create ratings")
   @ApiImplicitParams(Array(
-    new ApiImplicitParam(name = "body", value = "gr.ml.analytics.domain.Rating definition", required = true, paramType = "body", collectionFormat = "List", dataType = "gr.ml.analytics.domain.gr.ml.analytics.domain.Rating")
+    new ApiImplicitParam(name = "body", value = "gr.ml.analytics.domain.gr.ml.analytics.domain.Rating definition", required = true, paramType = "body", collectionFormat = "List", dataType = "gr.ml.analytics.domain.gr.ml.analytics.domain.gr.ml.analytics.domain.Rating")
   ))
   @ApiResponses(Array(
     new ApiResponse(code = 201, message = "Ratings have been created"),
@@ -35,7 +35,7 @@ class RatingsAPI(val ratingService: RatingService) {
               map("userId").toString.toInt,
               map("itemId").toString.toInt,
               map("rating").toString.toDouble,
-              map.getOrElse("timestamp", System.currentTimeMillis() / 1000).toString.toLong
+              map.getOrElse("timestamp", (System.currentTimeMillis() / 1000).toInt).toString.toInt
             )
           }
 

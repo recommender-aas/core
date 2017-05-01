@@ -20,11 +20,15 @@ class InputDatabase(override val connector: KeySpaceDef) extends Database[InputD
 
   object ratingModel extends ConcreteRatingModelNew with connector.Connector
 
+  object userModel extends ConcreteUserModel with connector.Connector
+
   object ratingTimestampModel extends ConcreteRatingTimestampModel with connector.Connector
 
   object schemasModel extends ConcreteSchemaModel with connector.Connector
 
   object clusteredItemsModel extends ConcreteClusteredItemsModel with connector.Connector
+
+  object notRatedItemModel extends ConcreteNotRatedItemModel with connector.Connector
 
   // create tables if not exist
   private val f1 = schemasModel.create.ifNotExists().future()
@@ -32,6 +36,8 @@ class InputDatabase(override val connector: KeySpaceDef) extends Database[InputD
   private val f3 = ratingModel.create.ifNotExists().future()
   private val f4 = clusteredItemsModel.create.ifNotExists().future()
   private val f5 = ratingTimestampModel.create.ifNotExists().future()
+  private val f6 = userModel.create.ifNotExists().future()
+  private val f7 = notRatedItemModel.create.ifNotExists().future()
 
   try {
     Await.ready(f1, 3.seconds)
@@ -39,6 +45,8 @@ class InputDatabase(override val connector: KeySpaceDef) extends Database[InputD
     Await.ready(f3, 3.seconds)
     Await.ready(f4, 3.seconds)
     Await.ready(f5, 3.seconds)
+    Await.ready(f6, 3.seconds)
+    Await.ready(f7, 3.seconds)
   } catch {
     case e: Throwable =>
       //ignore

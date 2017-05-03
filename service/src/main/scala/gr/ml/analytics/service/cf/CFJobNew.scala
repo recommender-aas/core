@@ -16,14 +16,15 @@ class CFJobNew(val config: Config,
 
   private val lastNSeconds = params.get("hb_last_n_seconds").get.toString.toInt
   private val ratingsTable: String = config.getString("cassandra.ratings_table")
-  private val cfPredictionsTable: String = config.getString("cassandra.cf_predictions_table")
+  private val predictionsTable: String = config.getString("cassandra.predictions_table")
+  private val cfPredictionsColumn: String = config.getString("cassandra.cf_predictions_column")
 
 
   /**
     * Spark job entry point
     */
   def run(): Unit = {
-    sink.clearTable(cfPredictionsTable)
+    sink.clearTable(predictionsTable)
     val allRatingsDF = source.getAllRatings(ratingsTable)
       .select("userId", "itemId", "rating")
 
@@ -40,13 +41,19 @@ class CFJobNew(val config: Config,
     val model = als.fit(allRatingsDF)
 
     for(userId <- source.getUserIdsForLastNSeconds(lastNSeconds)){
-     val notRatedPairsDF = source.getUserItemPairsToRate(userId) // TODO Q3 + We need some query to get all available itemIds (to insert when we have a new user...)
+     val notRatedPairsDF = source.getUserItemPairsToRate(userId)
       val predictedRatingsDS = model.transform(notRatedPairsDF)
         .filter(col("prediction").isNotNull)
         .select("userid", "itemid", "prediction")
-        .withColumn("key", concat(col("userid"), lit(":"), col("itemid")))
 
-      sink.storePredictions(predictedRatingsDS, cfPredictionsTable)
+      predictedRatingsDS.collect().foreach(r => {
+        val userId = r.getInt(0)
+        val itemId = r.getInt(1)
+        val prediction = r.getFloat(2)
+        sink.storePrediction(userId, itemId, prediction, cfPredictionsColumn)
+      })
+
+      //      sink.storePredictions(predictedRatingsDS, cfPredictionsTable)
     }
   }
 }

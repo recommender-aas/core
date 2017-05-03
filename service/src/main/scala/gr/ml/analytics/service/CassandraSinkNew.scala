@@ -13,10 +13,8 @@ class CassandraSinkNew(val config: Config)
   private val spark = CassandraUtil.setCassandraProperties(sparkSession, config)
 
   private val keyspace: String = config.getString("cassandra.keyspace")
-  private val cfPredictionsTable: String = config.getString("cassandra.cf_predictions_table")
-  private val cbPredictionsTable: String = config.getString("cassandra.cb_predictions_table")
+  private val predictionsTable: String = config.getString("cassandra.predictions_table")
   private val popularItemsTable: String = config.getString("cassandra.popular_items_table")
-  private val hybridPredictionsTable: String = config.getString("cassandra.hybrid_predictions_table")
   private val recommendationsTable: String = config.getString("cassandra.recommendations_table")
   private val trainRatingsTable: String = config.getString("cassandra.train_ratings_table")
   private val testRatingsTable: String = config.getString("cassandra.test_ratings_table")
@@ -28,10 +26,8 @@ class CassandraSinkNew(val config: Config)
 
   CassandraConnector(sparkSession.sparkContext).withSessionDo { session =>
     session.execute(s"CREATE KEYSPACE IF NOT EXISTS $keyspace WITH replication={'class':'SimpleStrategy', 'replication_factor':1}")
-    session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$cfPredictionsTable (key text PRIMARY KEY, userid int, itemid int, prediction float)")
-    session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$cbPredictionsTable (key text PRIMARY KEY, userid int, itemid int, prediction float)")
+    session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$predictionsTable (userid int, itemid int, cf_prediction float, cb_prediction float, hybrid_prediction float, primary key (userid, itemid))")
     session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$popularItemsTable (itemid int PRIMARY KEY, rating float, n_ratings int)")
-    session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$hybridPredictionsTable (key text PRIMARY KEY, userid int, itemid int, prediction float)")
     session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$recommendationsTable (userid int PRIMARY KEY, recommended_ids text)")
     session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$trainRatingsTable (key text PRIMARY KEY, userid int, itemid int, rating float)")
     session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$itemClustersTable (itemid int PRIMARY KEY, similar_items text)")
@@ -44,13 +40,11 @@ class CassandraSinkNew(val config: Config)
     }
   }
 
-  override def storePredictions(predictions: DataFrame, predictionsTable: String): Unit = {
-    predictions
-      .select(col("userId").as("userid"), col("itemId").as("itemid"), col("prediction"))
-      .withColumn("key", concat(col("userid"), lit(":"), col("itemid")))
-      .write.mode("append")
-      .cassandraFormat(predictionsTable, keyspace)
-      .save()
+  override def storePrediction(userId: Int, itemId: Int, predictedValue: Float, predictionColumn: String): Unit = {
+    CassandraConnector(sparkSession.sparkContext).withSessionDo { session =>
+      session.execute(s"UPDATE $keyspace.$predictionsTable " +
+        s"SET $predictionColumn = $predictedValue where userid = $userId and itemid = $itemId")
+    }
   }
 
   override def storeRecommendedItemIDs(userId: Int, recommendedItemIds: List[Int]): Unit = {

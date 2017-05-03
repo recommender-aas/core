@@ -11,37 +11,48 @@ class RatingServiceImpl(inputDatabase: InputDatabase) extends RatingService with
   private lazy val ratingModel = inputDatabase.ratingModel
   private lazy val userModel = inputDatabase.userModel
   private lazy val ratingTimestampModel = inputDatabase.ratingTimestampModel
-  private lazy val notRatedItemModel = inputDatabase.notRatedItemModel
+  private lazy val notRatedItemModel = inputDatabase.notRatedItemsModel
 
   /**
     * @inheritdoc
     */
   override def save(userId: Int, itemId: Int, rating: Double, timestamp: Int): Unit = {
+//    val ratingEntity = Rating(userId, itemId, rating, timestamp) // 20 secs
+//    ratingModel.save(ratingEntity)
+//    logger.info(s"saved $ratingEntity")
+
     val keyspace = inputDatabase.ratingModel.keySpace
     val schemaId = 0; // TODO unhardcode!!!
     val itemsTableName = Util.itemsTableName(schemaId)
-    val query1 = s"INSERT INTO $keyspace.ratings (userid, itemid, rating) values ($userId, $itemId, $rating)";
-    val wasApplied1 = inputDatabase.connector.session.execute(query1).wasApplied()
-    println("Saved into ratings table - " + wasApplied1)
+
+    val insertRatingsQuery = s"INSERT INTO $keyspace.ratings (userid, itemid, rating) values ($userId, $itemId, $rating)";
+    val start = System.currentTimeMillis()
+    inputDatabase.connector.session.execute(insertRatingsQuery).wasApplied()
 
     val cal: Calendar = Calendar.getInstance();
     cal.setTimeInMillis(timestamp*1000L);
     val year = cal.get(Calendar.YEAR)
-    val query2 = s"INSERT INTO $keyspace.ratings_timestamp (year, userid, timestamp) values ($year, $userId, $timestamp)";
-    val wasApplied2 = inputDatabase.connector.session.execute(query2).wasApplied()
-    println("Saved into ratings_timestamp table - " + wasApplied2)
+    val insertRatingsTimestamp = s"INSERT INTO $keyspace.ratings_timestamp (year, userid, timestamp) values ($year, $userId, $timestamp)";
+    inputDatabase.connector.session.execute(insertRatingsTimestamp).wasApplied()
 
-    val query3 = s"SELECT movieid FROM $keyspace.$itemsTableName";
-    val itemIds = inputDatabase.connector.session.execute(query3).all().toArray
-      .map(r => r.asInstanceOf[Row].getInt(0)).toList;
+    val getUserQuery = s"SELECT * FROM $keyspace.users WHERE userid = $userId";
+    val foundUsers = inputDatabase.connector.session.execute(getUserQuery).all()
 
-    itemIds.foreach(itemId => {
-      val query3 = s"INSERT INTO $keyspace.not_rated_items (userid, itemid) values ($userId, $itemId)";
-      inputDatabase.connector.session.execute(query3)
-    })
-    val query4 = s"INSERT INTO $keyspace.users (userid) values ($userId)";
-    val wasApplied4 = inputDatabase.connector.session.execute(query4).wasApplied()
-    println("Saved user " + userId + " - " + wasApplied4);
+    if(foundUsers.size == 0){
+      val getAllItemIDsQuery = s"SELECT movieid FROM $keyspace.$itemsTableName";
+      val itemIds = inputDatabase.connector.session.execute(getAllItemIDsQuery).all().toArray
+        .map(r => r.asInstanceOf[Row].getInt(0)).toList;
+
+      notRatedItemModel.save(userId, itemIds.toSet)
+
+
+      val insertIntoUsersQuery = s"INSERT INTO $keyspace.users (userid) values ($userId)";
+      val wasApplied4 = inputDatabase.connector.session.execute(insertIntoUsersQuery).wasApplied()
+      val finish = System.currentTimeMillis()
+      println("Saved user " + userId + " - " + wasApplied4 + " for " + (finish - start) + " millis.");
+    }
+
+    notRatedItemModel.removeNotRatedItem(userId, itemId)
 
     // TODO remove the row from 2 not rated tables
 

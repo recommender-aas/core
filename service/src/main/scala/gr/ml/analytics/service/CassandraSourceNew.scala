@@ -16,12 +16,14 @@ class CassandraSourceNew(val config: Config,
   private val keyspace: String = config.getString("cassandra.keyspace")
   private val ratingsTable: String = config.getString("cassandra.ratings_table")
   private val ratingsTimestampTable: String = config.getString("cassandra.ratings_timestamp_table")
+  private val itemsNotRatedByUserTable: String = config.getString("cassandra.items_not_rated_by_user_table")
   private val itemsTable: String = config.getString("cassandra.items_table_prefix") + schemaId
   private val schemasTable: String = config.getString("cassandra.schemas_table")
 
   private val keyCol = "key"
   private val userIdCol = "userid"
   private val itemIdCol = "itemid"
+  private val itemIdsCol = "itemids"
   private val ratingCol = "rating"
   private val timestampCol = "timestamp"
   private val predictionCol = "prediction"
@@ -92,14 +94,34 @@ class CassandraSourceNew(val config: Config,
 
 
   override def getUserItemPairsToRate(userId: Int): DataFrame = {
-    val itemIdsNotToIncludeDF = getAllRatings(ratingsTable).filter($"userid" === userId).select("itemid") // 4 secs
-    val itemIdsNotToIncludeSet = itemIdsNotToIncludeDF.collect()
-      .map(r=>r.getInt(0))
-      .toSet.toList
-    val itemsIdsToRate = itemIDsDS.filter(!$"itemid".isin(itemIdsNotToIncludeSet: _*)) // quick
-    val notRatedPairsDF = itemsIdsToRate.withColumn("userid", lit(userId))
-      .select(col("itemid").as("itemId"), col("userid").as("userId"))
-    notRatedPairsDF
+    val itemIds: List[Int] = spark.read
+      .format("org.apache.spark.sql.cassandra")
+      .options(Map("table" -> itemsNotRatedByUserTable, "keyspace" -> keyspace))
+      .load()
+      .where(col("userid") === userId)
+      .select(itemIdsCol)
+      .collect()
+      .toList(0).getList(0)
+      .toArray.toList
+      .asInstanceOf[List[Int]]
+//      .map(r => r.getList(0))
+//      .toList
+
+
+//      .collect
+//      .map(r => r.getInt(0)).toSet
+    itemIds.toDF("itemId")
+      .withColumn("userId", lit(userId))
+
+//    println("check result")
+//    val itemIdsNotToIncludeDF = getAllRatings(ratingsTable).filter($"userid" === userId).select("itemid") // 4 secs
+//    val itemIdsNotToIncludeSet = itemIdsNotToIncludeDF.collect()
+//      .map(r=>r.getInt(0))
+//      .toSet.toList
+//    val itemsIdsToRate = itemIDsDS.filter(!$"itemid".isin(itemIdsNotToIncludeSet: _*)) // quick
+//    val notRatedPairsDF = itemsIdsToRate.withColumn("userid", lit(userId))
+//      .select(col("itemid").as("itemId"), col("userid").as("userId"))
+//    notRatedPairsDF
   }
 
 

@@ -23,9 +23,7 @@ class HybridServiceNew(val subRootDir: String,
   val cbPredictionService = new CBPredictionService(subRootDir)
   val csv2svmConverter = new CSVtoSVMConverter(subRootDir)
 
-  private val cfPredictionsTable: String = config.getString("cassandra.cf_predictions_table")
-  private val cbPredictionsTable: String = config.getString("cassandra.cb_predictions_table")
-  private val hybridPredictionsTable: String = config.getString("cassandra.hybrid_predictions_table")
+  private val hybridPredictionsColumn: String = config.getString("cassandra.hybrid_predictions_column")
 
   def run(cbPipeline: Pipeline): Unit ={
     val popularItemsJob = PopularItemsJobNew(source, config)
@@ -84,7 +82,6 @@ class HybridServiceNew(val subRootDir: String,
 
   def combinePredictionsForLastUsers(collaborativeWeight: Double): Unit ={
     val lastNSeconds = paramsStorage.getParams()("hb_last_n_seconds").toString.toInt
-    sink.clearTable(hybridPredictionsTable)
     val userIds = source.getUserIdsForLastNSeconds(lastNSeconds) // TODO not good, that we have to get it every time...
     for(userId <- userIds){
       combinePredictionsForUser(userId, collaborativeWeight)
@@ -92,8 +89,9 @@ class HybridServiceNew(val subRootDir: String,
   }
 
   def combinePredictionsForUser(userId: Int, collaborativeWeight: Double): Unit ={
-    val cfPredictionsDF = source.getPredictionsForUser(userId, cfPredictionsTable).withColumn("prediction", $"prediction" * collaborativeWeight)
-    val cbPredictionsDF = source.getPredictionsForUser(userId, cbPredictionsTable).withColumn("prediction", $"prediction" * (1-collaborativeWeight))
+    // TODO FIXME:
+    val cfPredictionsDF = source.getPredictionsForUser(userId, "FIXME!!").withColumn("prediction", $"prediction" * collaborativeWeight)
+    val cbPredictionsDF = source.getPredictionsForUser(userId, "FIXME!!").withColumn("prediction", $"prediction" * (1-collaborativeWeight))
 
     val hybridPredictions = cfPredictionsDF // TODO should we use spark here?
       .select("key","userid", "itemid", "prediction")
@@ -103,7 +101,13 @@ class HybridServiceNew(val subRootDir: String,
       .sort($"prediction".desc)
       .limit(1000) // TODO extract to config
 
-    sink.storePredictions(hybridPredictions, hybridPredictionsTable) // TODO should we use spark here?
+    // TODO we can perform summing here:
+    hybridPredictions.collect().foreach(r => {
+      val userId = r.getInt(0)
+      val itemId = r.getInt(1)
+      val prediction = r.getFloat(2)
+      sink.storePrediction(userId, itemId, prediction, hybridPredictionsColumn)
+    })
 
     val finalPredictedIDs = hybridPredictions.select("itemid").collect().map(r => r.getInt(0)).toList
     sink.storeRecommendedItemIDs(userId, finalPredictedIDs)

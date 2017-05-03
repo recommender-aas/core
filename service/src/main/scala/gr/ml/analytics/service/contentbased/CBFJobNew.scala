@@ -14,12 +14,12 @@ class CBFJobNew(val config: Config,
 
   private val lastNSeconds = params.get("hb_last_n_seconds").get.toString.toInt
   private val ratingsTable: String = config.getString("cassandra.ratings_table")
-  private val cbPredictionsTable: String = config.getString("cassandra.cb_predictions_table")
+//  private val cbPredictionsTable: String = config.getString("cassandra.cb_predictions_table")
+  private val cbPredictionsColumn: String = config.getString("cassandra.cb_predictions_column")
 
   import sparkSession.implicits._
 
   def run(): Unit = {
-    sink.clearTable(cbPredictionsTable)
     val itemAndFeaturesDF = source.getAllItemsAndFeatures()
 
     for (userId <- source.getUserIdsForLastNSeconds(lastNSeconds)) {
@@ -49,7 +49,12 @@ class CBFJobNew(val config: Config,
         .filter(col("prediction").isNotNull)
         .select("userId", "itemId", "prediction")
 
-      sink.storePredictions(predictedRatingsDS, cbPredictionsTable)
+      predictedRatingsDS.collect().foreach(r => {
+        val userId = r.getInt(0)
+        val itemId = r.getInt(1)
+        val prediction = r.getDouble(2).toFloat
+        sink.storePrediction(userId, itemId, prediction, cbPredictionsColumn)
+      })
     }
   }
 }

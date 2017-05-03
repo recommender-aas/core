@@ -5,10 +5,8 @@ import org.apache.spark.sql.DataFrame
 trait SinkNew {
   /**
     * General method for storing predictions (CF, CB and final)
-    *
-    * @param predictions dataframe of (key: String, userId: Int, itemId: Int, prediction: float) triples
     */
-  def storePredictions(predictions: DataFrame, table: String)
+  def storePrediction(userId: Int, itemId: Int, predictedValue: Float, predictionColumn: String)
 
   def storeRecommendedItemIDs(userId: Int, recommendedItemIds: List[Int])
 

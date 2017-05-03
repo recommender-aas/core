@@ -8,7 +8,7 @@ import scala.annotation.meta.field
 case class NotRatedItem(
                    @(ApiModelProperty @field)(value = "id of the user")
                    userId: Int,
-                   @(ApiModelProperty @field)(value = "id of the item")
-                   itemId: Int)
+                   @(ApiModelProperty @field)(value = "ids of not rated items")
+                   itemIds: Set[Int])
 
 object NotRatedItem

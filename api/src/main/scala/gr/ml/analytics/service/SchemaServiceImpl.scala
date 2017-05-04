@@ -50,7 +50,7 @@ class SchemaServiceImpl(inputDatabase: InputDatabase) extends SchemaService with
     logger.info(s"Creating: $q")
     schemasModel.session.execute(q).getColumnDefinitions
 
-    val q2 = s"CREATE TABLE ${schemasModel.keySpace}.$tableNameDense (itemid $pkColumnType PRIMARY KEY, features list<int> )" // TODO unhardcode!
+    val q2 = s"CREATE TABLE ${schemasModel.keySpace}.$tableNameDense (itemid $pkColumnType PRIMARY KEY, features list<double> )" // TODO unhardcode!
     logger.info(s"Creating: $q2")
     schemasModel.session.execute(q2).getColumnDefinitions
 

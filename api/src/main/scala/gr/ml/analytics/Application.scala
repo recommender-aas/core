@@ -49,12 +49,12 @@ object Application extends App {
   val schemasClient: SchemasAPIClient = new SchemasAPIClient(serviceClientURI)
 
   val recommenderService: RecommenderService = new RecommenderServiceImpl(inputDatabase)
-  var itemsService: ItemService = new ItemServiceImpl(inputDatabase, cassandraCache)
-  val ratingsService: RatingService = new RatingServiceImpl(inputDatabase, cassandraCache)
+  var itemService: ItemService = new ItemServiceImpl(inputDatabase, cassandraCache)
+  val ratingsService: RatingService = new RatingServiceImpl(inputDatabase, cassandraCache, itemService)
 
   // create apis
   val recommenderApi = new RecommenderAPI(recommenderService)
-  val itemsApi = new ItemsAPI(itemsService)
+  val itemsApi = new ItemsAPI(itemService)
   val schemasApi = new SchemasAPI(schemasService)
   val ratingsApi = new RatingsAPI(ratingsService)
 

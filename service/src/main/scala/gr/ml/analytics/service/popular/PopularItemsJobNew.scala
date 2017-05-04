@@ -4,6 +4,7 @@ import com.typesafe.config.Config
 import gr.ml.analytics.cassandra.CassandraUtil
 import gr.ml.analytics.service.{Source, SourceNew}
 import org.apache.spark.sql.cassandra._
+import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
 class PopularItemsJobNew(val source: SourceNew,
@@ -19,6 +20,7 @@ class PopularItemsJobNew(val source: SourceNew,
 
   def run(): Unit = {
     val ratingsDS = source.getAllRatings(ratingsTable)
+      .select(col("userid").as("userId"), col("itemid").as("itemId"), col("rating"))
     // TODO how about having items_avg_rating table that we can update based on new-coming ratings?
     // (we need current avg_rating and a number of ratings for this item)
     val allRatings = ratingsDS.collect().map(r => List(r.getInt(0), r.getInt(1), r.getDouble(2)))

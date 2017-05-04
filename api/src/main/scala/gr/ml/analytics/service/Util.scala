@@ -1,5 +1,7 @@
 package gr.ml.analytics.service
 
+import gr.ml.analytics.domain.Item
+
 import scala.util.parsing.json.{JSON, JSONArray, JSONObject}
 
 object Util {
@@ -47,5 +49,22 @@ object Util {
   }
 
   def itemsTableName(schemaId: Int): String = s"items_$schemaId"
+
+  def getFeaturesValuesString(schemaMap: Map[String, Any], item: Item): String ={
+
+    val allowedTypes = Set("double", "float")
+    val idColumnName = schemaMap("id").asInstanceOf[Map[String, String]]("name")
+    val featureColumnNames = schemaMap("features").asInstanceOf[List[Map[String, String]]]
+      .filter((colDescription: Map[String, Any]) => allowedTypes.contains(colDescription("type").asInstanceOf[String].toLowerCase))
+      .map(colDescription => colDescription("name"))
+
+    val featureValues: List[Int] = featureColumnNames
+      .map(name => item.get(name))
+      .map(some => some.get.toString.toInt)
+      .toArray.toList
+
+    val featuresString = "[" + featureValues.toArray.mkString(", ") + "]"
+    featuresString
+  }
 
 }

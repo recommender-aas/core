@@ -1,6 +1,5 @@
 package gr.ml.analytics.service
 
-import com.datastax.driver.core.Row
 import com.typesafe.scalalogging.LazyLogging
 import gr.ml.analytics.cassandra.{CassandraCache, InputDatabase}
 import gr.ml.analytics.domain.{Item, Schema}
@@ -23,7 +22,6 @@ class ItemServiceImpl(val inputDatabase: InputDatabase, val cassandraCache: Cass
       case Some(schema) =>
         val schemaMap: Map[String, Any] = schema.jsonSchema
         val (idName, idType) = Util.extractIdMetadata(schemaMap)
-        val featureColumnsInfo: List[Map[String, String]] = Util.extractFeaturesMetadata(schemaMap)
 
         // retrieve content in json format
         val tableName = Util.itemsTableName(schemaId)
@@ -58,7 +56,6 @@ class ItemServiceImpl(val inputDatabase: InputDatabase, val cassandraCache: Cass
       case Some(schema: Schema) =>
         val schemaMap: Map[String, Any] = schema.jsonSchema
         val (idName, idType) = Util.extractIdMetadata(schemaMap)
-        val featureColumnsInfo: List[Map[String, String]] = Util.extractFeaturesMetadata(schemaMap)
 
         // TODO implement proper mechanism to escape characters which have special meaning for Cassandra
         val json = JSONObject(item).toString().replace("'", "")
@@ -69,19 +66,9 @@ class ItemServiceImpl(val inputDatabase: InputDatabase, val cassandraCache: Cass
         val res = inputDatabase.connector.session.execute(query).wasApplied()
 
         // inserting into dense items table
-        val allowedTypes = Set("double", "float")
-        val idColumnName = schemaMap("id").asInstanceOf[Map[String, String]]("name")
-        val itemId = item.get(idColumnName).get
-        val featureColumnNames = schemaMap("features").asInstanceOf[List[Map[String, String]]]
-          .filter((colDescription: Map[String, Any]) => allowedTypes.contains(colDescription("type").asInstanceOf[String].toLowerCase))
-          .map(colDescription => colDescription("name"))
+        val itemId = item.get(idName).get
 
-        val featureValues: List[Int] = featureColumnNames
-          .map(name => item.get(name))
-          .map(some => some.get.toString.toInt)
-          .toArray.toList
-
-        val featuresString = "[" + featureValues.toArray.mkString(", ") + "]"
+        val featuresString = Util.getFeaturesValuesString(schemaMap, item)
         val insertDenseItemQuery = s"INSERT INTO $keyspace.$tableNameDense (itemid, features) values ($itemId, $featuresString)";
         inputDatabase.connector.session.execute(insertDenseItemQuery)
 

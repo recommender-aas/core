@@ -26,7 +26,7 @@ class CFJobNew(val config: Config,
   def run(): Unit = {
     sink.clearTable(predictionsTable)
     val allRatingsDF = source.getAllRatings(ratingsTable)
-      .select("userId", "itemId", "rating")
+      .select(col("userid").as("userId"), col("itemid").as("itemId"), col("rating"))
 
     val rank = params("cf_rank").toString.toInt
     val regParam = params("cf_reg_param").toString.toDouble

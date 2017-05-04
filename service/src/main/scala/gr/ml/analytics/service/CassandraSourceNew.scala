@@ -66,18 +66,11 @@ class CassandraSourceNew(val config: Config,
     convertJson(json("jsonschema").asInstanceOf[String])
   }
 
-  private def getUserIdsForLastDF(seconds: Int): DataFrame = {
-    val userIdsDF = getAllRatings(ratingsTable).filter($"timestamp" > System.currentTimeMillis / 1000 - seconds)
-      .select(userIdCol).distinct()
-    userIdsDF
-  }
-
   override def getAllRatings(tableName: String): DataFrame = {
     spark.read
       .format("org.apache.spark.sql.cassandra")
       .options(Map("table" -> tableName, "keyspace" -> keyspace))
       .load()
-      .select(userIdCol, itemIdCol, ratingCol)
   }
 
 

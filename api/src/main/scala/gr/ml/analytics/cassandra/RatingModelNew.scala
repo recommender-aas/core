@@ -20,7 +20,9 @@ class RatingModelNew extends CassandraTable[ConcreteRatingModelNew, RatingNew] {
 
   object rating extends DoubleColumn(this)
 
-  override def fromRow(r: Row): RatingNew = RatingNew(userId(r), itemId(r), rating(r))
+  object features extends ListColumn[Double](this)
+
+  override def fromRow(r: Row): RatingNew = RatingNew(userId(r), itemId(r), rating(r), features(r))
 }
 
 /**
@@ -41,11 +43,12 @@ abstract class ConcreteRatingModelNew extends RatingModelNew with RootConnector 
       .fetch
   }
 
-  def save(rating: Rating) = {
+  def save(rating: RatingNew) = {
     insert
       .value(_.userId, rating.userId)
       .value(_.itemId, rating.itemId)
       .value(_.rating, rating.rating)
+      .value(_.features, rating.features)
       .consistencyLevel_=(ConsistencyLevel.ONE)
       .future()
   }

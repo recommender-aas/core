@@ -11,6 +11,8 @@ case class RatingNew(
                    @(ApiModelProperty @field)(value = "unique identifier for the item")
                    itemId: Int,
                    @(ApiModelProperty @field)(value = "rating to describe how user prefer an item")
-                   rating: Double)
+                   rating: Double,
+                   @(ApiModelProperty @field)(value = "feature values of the item")
+                   features: List[Double])
 
 object RatingNew

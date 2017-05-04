@@ -6,7 +6,7 @@ import akka.http.scaladsl.Http
 import akka.stream.ActorMaterializer
 import Configuration._
 import gr.ml.analytics.api.{ItemsAPI, RatingsAPI, RecommenderAPI, SchemasAPI}
-import gr.ml.analytics.cassandra.{CassandraConnector, InputDatabase}
+import gr.ml.analytics.cassandra.{CassandraCache, CassandraConnector, InputDatabase}
 import gr.ml.analytics.client.SchemasAPIClient
 import gr.ml.analytics.service._
 import akka.http.scaladsl.server.Directives._
@@ -43,14 +43,14 @@ object Application extends App {
     Some(cassandraPassword))
 
   val inputDatabase = new InputDatabase(cassandraConnector.connector)
-
+  val cassandraCache = new CassandraCache(inputDatabase)
   // create services
   val schemasService: SchemaService = new SchemaServiceImpl(inputDatabase)
   val schemasClient: SchemasAPIClient = new SchemasAPIClient(serviceClientURI)
 
   val recommenderService: RecommenderService = new RecommenderServiceImpl(inputDatabase)
-  var itemsService: ItemService = new ItemServiceImpl(inputDatabase)
-  val ratingsService: RatingService = new RatingServiceImpl(inputDatabase)
+  var itemsService: ItemService = new ItemServiceImpl(inputDatabase, cassandraCache)
+  val ratingsService: RatingService = new RatingServiceImpl(inputDatabase, cassandraCache)
 
   // create apis
   val recommenderApi = new RecommenderAPI(recommenderService)

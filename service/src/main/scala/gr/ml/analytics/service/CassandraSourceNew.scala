@@ -104,24 +104,9 @@ class CassandraSourceNew(val config: Config,
       .toList(0).getList(0)
       .toArray.toList
       .asInstanceOf[List[Int]]
-//      .map(r => r.getList(0))
-//      .toList
 
-
-//      .collect
-//      .map(r => r.getInt(0)).toSet
     itemIds.toDF("itemId")
       .withColumn("userId", lit(userId))
-
-//    println("check result")
-//    val itemIdsNotToIncludeDF = getAllRatings(ratingsTable).filter($"userid" === userId).select("itemid") // 4 secs
-//    val itemIdsNotToIncludeSet = itemIdsNotToIncludeDF.collect()
-//      .map(r=>r.getInt(0))
-//      .toSet.toList
-//    val itemsIdsToRate = itemIDsDS.filter(!$"itemid".isin(itemIdsNotToIncludeSet: _*)) // quick
-//    val notRatedPairsDF = itemsIdsToRate.withColumn("userid", lit(userId))
-//      .select(col("itemid").as("itemId"), col("userid").as("userId"))
-//    notRatedPairsDF
   }
 
 

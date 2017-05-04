@@ -4,9 +4,9 @@ import java.util.Calendar
 
 import com.datastax.driver.core.Row
 import com.typesafe.scalalogging.LazyLogging
-import gr.ml.analytics.cassandra.InputDatabase
+import gr.ml.analytics.cassandra.{CassandraCache, InputDatabase}
 
-class RatingServiceImpl(inputDatabase: InputDatabase) extends RatingService with LazyLogging {
+class RatingServiceImpl(val inputDatabase: InputDatabase, val cassandraCache: CassandraCache) extends RatingService with LazyLogging {
 
   private lazy val ratingModel = inputDatabase.ratingModel
   private lazy val userModel = inputDatabase.userModel
@@ -39,17 +39,14 @@ class RatingServiceImpl(inputDatabase: InputDatabase) extends RatingService with
     val foundUsers = inputDatabase.connector.session.execute(getUserQuery).all()
 
     if(foundUsers.size == 0){
-      val getAllItemIDsQuery = s"SELECT movieid FROM $keyspace.$itemsTableName";
-      val itemIds = inputDatabase.connector.session.execute(getAllItemIDsQuery).all().toArray
-        .map(r => r.asInstanceOf[Row].getInt(0)).toList;
-
-      notRatedItemModel.save(userId, itemIds.toSet)
-
+      val itemIds = cassandraCache.getAllItemIDs()
+      notRatedItemModel.save(userId, itemIds)
 
       val insertIntoUsersQuery = s"INSERT INTO $keyspace.users (userid) values ($userId)";
-      val wasApplied4 = inputDatabase.connector.session.execute(insertIntoUsersQuery).wasApplied()
+      inputDatabase.connector.session.execute(insertIntoUsersQuery)
       val finish = System.currentTimeMillis()
-      println("Saved user " + userId + " - " + wasApplied4 + " for " + (finish - start) + " millis.");
+      println("Saved user " + userId + " for " + (finish - start) + " millis.");
+      cassandraCache.invalidateUserIDs()
     }
 
     notRatedItemModel.removeNotRatedItem(userId, itemId)

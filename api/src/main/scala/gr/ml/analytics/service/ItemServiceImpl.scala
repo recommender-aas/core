@@ -2,14 +2,14 @@ package gr.ml.analytics.service
 
 import com.datastax.driver.core.Row
 import com.typesafe.scalalogging.LazyLogging
-import gr.ml.analytics.cassandra.InputDatabase
+import gr.ml.analytics.cassandra.{CassandraCache, InputDatabase}
 import gr.ml.analytics.domain.{Item, Schema}
 
 import scala.concurrent.Future
 import scala.util.parsing.json.JSONObject
 import scala.concurrent.ExecutionContext.Implicits.global
 
-class ItemServiceImpl(val inputDatabase: InputDatabase) extends ItemService with LazyLogging {
+class ItemServiceImpl(val inputDatabase: InputDatabase, val cassandraCache: CassandraCache) extends ItemService with LazyLogging {
 
   private lazy val notRatedItemModel = inputDatabase.notRatedItemsModel
 
@@ -60,21 +60,37 @@ class ItemServiceImpl(val inputDatabase: InputDatabase) extends ItemService with
         val (idName, idType) = Util.extractIdMetadata(schemaMap)
         val featureColumnsInfo: List[Map[String, String]] = Util.extractFeaturesMetadata(schemaMap)
 
-
         // TODO implement proper mechanism to escape characters which have special meaning for Cassandra
         val json = JSONObject(item).toString().replace("'", "")
         val tableName = Util.itemsTableName(schemaId)
+        val tableNameDense = Util.itemsTableName(schemaId) + "_dense"
         val keyspace = inputDatabase.ratingModel.keySpace
         val query = s"INSERT INTO $keyspace.$tableName JSON '$json'"
         val res = inputDatabase.connector.session.execute(query).wasApplied()
 
+        // inserting into dense items table
+        val allowedTypes = Set("double", "float")
+        val idColumnName = schemaMap("id").asInstanceOf[Map[String, String]]("name")
+        val itemId = item.get(idColumnName).get
+        val featureColumnNames = schemaMap("features").asInstanceOf[List[Map[String, String]]]
+          .filter((colDescription: Map[String, Any]) => allowedTypes.contains(colDescription("type").asInstanceOf[String].toLowerCase))
+          .map(colDescription => colDescription("name"))
+
+        val featureValues: List[Int] = featureColumnNames
+          .map(name => item.get(name))
+          .map(some => some.get.toString.toInt)
+          .toArray.toList
+
+        val featuresString = "[" + featureValues.toArray.mkString(", ") + "]"
+        val insertDenseItemQuery = s"INSERT INTO $keyspace.$tableNameDense (itemid, features) values ($itemId, $featuresString)";
+        inputDatabase.connector.session.execute(insertDenseItemQuery)
+
         logger.info(s"Creating item: '$query' Result: $res")
 
-        val itemId: Int = item.get("movieid").get.toString.toInt // TODO UNHARDCODE movieid!!!
-        val getAllUserIDsQuery = s"SELECT userid FROM $keyspace.users";
-        val userIds = inputDatabase.connector.session.execute(getAllUserIDsQuery).all().toArray
-          .map(r => r.asInstanceOf[Row].getInt(0)).toList;
-        userIds.foreach(userId => notRatedItemModel.addNotRatedItem(userId, itemId))
+        cassandraCache.invalidateItemIDs()
+
+        val userIds = cassandraCache.getAllUserIDs()
+        userIds.foreach(userId => notRatedItemModel.addNotRatedItem(userId, itemId.toString.toInt))// TODO int type is hardcoded...
 
         Some(item(idName.toLowerCase()).asInstanceOf[Integer].intValue())
       case None =>

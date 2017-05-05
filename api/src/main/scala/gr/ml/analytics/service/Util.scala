@@ -53,7 +53,6 @@ object Util {
   def getFeaturesValuesString(schemaMap: Map[String, Any], item: Item): String ={
 
     val allowedTypes = Set("double", "float")
-    val idColumnName = schemaMap("id").asInstanceOf[Map[String, String]]("name")
     val featureColumnNames = schemaMap("features").asInstanceOf[List[Map[String, String]]]
       .filter((colDescription: Map[String, Any]) => allowedTypes.contains(colDescription("type").asInstanceOf[String].toLowerCase))
       .map(colDescription => colDescription("name"))

@@ -1,11 +1,14 @@
 package gr.ml.analytics.service
 
+import com.datastax.driver.core.Row
 import com.datastax.spark.connector.cql.CassandraConnector
 import com.typesafe.config.Config
 import gr.ml.analytics.cassandra.CassandraUtil
-import org.apache.spark.sql.functions.{col, lit}
+import org.apache.spark.ml.linalg.Vectors
+import org.apache.spark.sql.functions.{col, lit, udf}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
+import scala.collection.mutable
 import scala.util.parsing.json.JSON
 
 class CassandraSourceNew(val config: Config,
@@ -19,6 +22,7 @@ class CassandraSourceNew(val config: Config,
   private val itemsNotRatedByUserTable: String = config.getString("cassandra.items_not_rated_by_user_table")
   private val itemsTable: String = config.getString("cassandra.items_table_prefix") + schemaId
   private val schemasTable: String = config.getString("cassandra.schemas_table")
+  private val notRatedItemsWithFeaturesTable: String = config.getString("cassandra.not_rated_items_with_features_table")
 
   private val keyCol = "key"
   private val userIdCol = "userid"
@@ -31,14 +35,14 @@ class CassandraSourceNew(val config: Config,
 
   import spark.implicits._
 
-  private lazy val userIDsDS = spark
+  private lazy val userIDsDS = spark // TODO do we need this?
     .read
     .format("org.apache.spark.sql.cassandra")
     .options(Map("table" -> itemsTable, "keyspace" -> keyspace))
     .load()
     .select(itemIdCol)
 
-  private lazy val itemIDsDS = getAllRatings(ratingsTable)
+  private lazy val itemIDsDS = getAllRatings(ratingsTable) // TODO do we need this?
     .select(col(itemIdCol))
     .distinct()
 
@@ -85,20 +89,47 @@ class CassandraSourceNew(val config: Config,
       .map(r => r.getInt(0)).toSet
   }
 
-
-  override def getUserItemPairsToRate(userId: Int): DataFrame = {
-    val itemIds: List[Int] = spark.read
+ override def getNotRatedItemsWithFeaturesMap(userId: Int): Map[Int, List[Double]] ={
+    val result = spark.read // TODO don't actually need spark to read this! (check if it is faster without spark)
       .format("org.apache.spark.sql.cassandra")
-      .options(Map("table" -> itemsNotRatedByUserTable, "keyspace" -> keyspace))
+      .options(Map("table" -> notRatedItemsWithFeaturesTable, "keyspace" -> keyspace))
       .load()
-      .where(col("userid") === userId)
-      .select(itemIdsCol)
+      .where(col("userid") === 808) // TODO unhardcode!
+      .select("items")
       .collect()
-      .toList(0).getList(0)
-      .toArray.toList
-      .asInstanceOf[List[Int]]
 
-    itemIds.toDF("itemId")
+    if(result.size > 0)
+      result(0).getMap(0).asInstanceOf[Map[Int, List[Double]]]
+    else
+      Map()
+  }
+
+  override def getNotRatedItems(userId: Int): DataFrame = {
+    getNotRatedItemsWithFeaturesMap(userId)
+      .keys.toList.toDF("itemId")
+      .withColumn("userId", lit(userId))
+
+
+    // TODO nothing wrong with this code, I just want to try to use single cassandra table for both CF and CB
+//    val itemIds: List[Int] = spark.read
+//      .format("org.apache.spark.sql.cassandra")
+//      .options(Map("table" -> itemsNotRatedByUserTable, "keyspace" -> keyspace))
+//      .load()
+//      .where(col("userid") === userId)
+//      .select(itemIdsCol)
+//      .collect()
+//      .toList(0).getList(0)
+//      .toArray.toList
+//      .asInstanceOf[List[Int]]
+//
+//    itemIds.toDF("itemId")
+//      .withColumn("userId", lit(userId))
+  }
+
+  override def getNotRatedItemsWithFeatures(userId: Int): DataFrame = {
+    getNotRatedItemsWithFeaturesMap(userId)
+      .map(t => (t._1, Vectors.dense(t._2.toArray)))
+      .toList.toDF("itemId", "features")
       .withColumn("userId", lit(userId))
   }
 

@@ -16,8 +16,11 @@ trait SourceNew {
   /**
     * @return DataFrame of itemIds and userIds for rating (required by CF job)
     */
-  def getUserItemPairsToRate(userId: Int): DataFrame
+  def getNotRatedItems(userId: Int): DataFrame
 
+  def getNotRatedItemsWithFeaturesMap(userId: Int): Map[Int, List[Double]]
+
+  def getNotRatedItemsWithFeatures(userId: Int): DataFrame
   /**
     * @return DataFrame of itemIds and numeric features
     */

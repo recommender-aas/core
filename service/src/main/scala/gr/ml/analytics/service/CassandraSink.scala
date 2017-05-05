@@ -23,6 +23,7 @@ class CassandraSink(val config: Config)
   private val trainRatingsTable: String = config.getString("cassandra.train_ratings_table")
   private val testRatingsTable: String = config.getString("cassandra.test_ratings_table")
   private val itemClustersTable: String = config.getString("cassandra.item_clusters_table")
+  private val notRatedItemsWithFeaturesTable: String = config.getString("cassandra.not_rated_items_with_features_table")
 
   private val userIdCol = "userid"
   private val itemIdCol = "itemid"
@@ -38,6 +39,8 @@ class CassandraSink(val config: Config)
     session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$trainRatingsTable (key text PRIMARY KEY, userid int, itemid int, rating float)")
     session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$itemClustersTable (itemid int PRIMARY KEY, similar_items text)")
     session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$testRatingsTable (key text PRIMARY KEY, userid int, itemid int, rating float, timestamp int)")
+
+    session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$notRatedItemsWithFeaturesTable (userid int PRIMARY KEY, items map<int, frozen<list<double>>>)")
   }
 
   override def clearTable(table: String): Unit = {

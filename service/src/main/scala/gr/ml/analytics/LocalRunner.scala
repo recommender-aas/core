@@ -100,6 +100,11 @@ object LocalRunner {
 
     do {
 
+      // TODO try if applying of asDense method to tuple is faster that applying it allready to column (CBFJob)
+      // But be careful so that source.getAllRatings in CFJob does not work mush slower!!!
+
+
+
       cfJob.run()
       cbfJob.run()
       popularItemsJob.run()

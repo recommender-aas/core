@@ -46,8 +46,6 @@ abstract class ConcreteNotRatedItemsModel extends NotRatedItemModel with RootCon
       .future()
   }
 
-// TODO we would need a remove method (here or there)
-
   def save(userId: Int, itemIds: Set[Int]) = {
     insert
       .value(_.userId, userId)

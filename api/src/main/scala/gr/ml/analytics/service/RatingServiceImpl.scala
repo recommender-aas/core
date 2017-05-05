@@ -2,8 +2,12 @@ package gr.ml.analytics.service
 
 import java.util.Calendar
 
+import com.datastax.driver.core.Row
+import com.typesafe.config.{Config, ConfigFactory}
 import com.typesafe.scalalogging.LazyLogging
 import gr.ml.analytics.cassandra.{CassandraCache, InputDatabase}
+import gr.ml.analytics.domain.{RatingNew, RatingTimestamp, User}
+
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class RatingServiceImpl(val inputDatabase: InputDatabase, val cassandraCache: CassandraCache, val itemService: ItemService)
@@ -13,6 +17,11 @@ class RatingServiceImpl(val inputDatabase: InputDatabase, val cassandraCache: Ca
   private lazy val userModel = inputDatabase.userModel
   private lazy val ratingTimestampModel = inputDatabase.ratingTimestampModel
   private lazy val notRatedItemModel = inputDatabase.notRatedItemsModel
+//  private lazy val notRatedItemsWithFeaturesModel = inputDatabase.notRatedItemsWithFeaturesModel
+
+  def arrayListToList(arrayList: Object): List[Double] ={
+    arrayList.asInstanceOf[java.util.ArrayList[Double]].toArray.toList.asInstanceOf[List[Double]]
+  }
 
   /**
     * @inheritdoc
@@ -22,34 +31,42 @@ class RatingServiceImpl(val inputDatabase: InputDatabase, val cassandraCache: Ca
 
     val start = System.currentTimeMillis()
     val getItemQuery = s"SELECT features from $keyspace.items_0_dense where itemid = $itemId"; // TODO unhardcode!
-    val featuresString = inputDatabase.connector.session.execute(getItemQuery).one().getObject("features").toString
-
-    val insertRatingsQuery = s"INSERT INTO $keyspace.ratings (userid, itemid, rating, features) values ($userId, $itemId, $rating, $featuresString)"; // TODO try with phantom to check if this is quicker
-    inputDatabase.connector.session.execute(insertRatingsQuery).wasApplied()
+    val features = inputDatabase.connector.session.execute(getItemQuery).one().getObject("features")
+//    val featuresList = features.asInstanceOf[java.util.ArrayList[Double]].toArray.toList.asInstanceOf[List[Double]]
+    val ratingObject = new RatingNew(userId, itemId, rating, arrayListToList(features))
+    ratingModel.save(ratingObject)
 
     val cal: Calendar = Calendar.getInstance();
     cal.setTimeInMillis(timestamp*1000L);
-    val year = cal.get(Calendar.YEAR)
-    val insertRatingsTimestamp = s"INSERT INTO $keyspace.ratings_timestamp (year, userid, timestamp) values ($year, $userId, $timestamp)"; // TODO try with phantom to check if this is quicker
-    inputDatabase.connector.session.execute(insertRatingsTimestamp).wasApplied()
+    ratingTimestampModel.save(new RatingTimestamp(cal.get(Calendar.YEAR), userId, timestamp))
 
     val getUserQuery = s"SELECT * FROM $keyspace.users WHERE userid = $userId";
     val foundUsers = inputDatabase.connector.session.execute(getUserQuery).all()
 
     if(foundUsers.size == 0){
+      // TODO testing, remove afterwards
+      val getAllItemsAndFeaturesQuery = s"SELECT itemid, features FROM $keyspace.items_0_dense"; // TODO unhardcode schema
+      val allItemsWithFeaturesMap = inputDatabase.connector.session.execute(getAllItemsAndFeaturesQuery).all().toArray
+        .map(r => (r.asInstanceOf[Row].getInt(0), arrayListToList(r.asInstanceOf[Row].getObject(1)))).toMap
+//      notRatedItemsWithFeaturesModel.save(userId, allItemsWithFeaturesMap)
+
+      val jsonMapEntries = allItemsWithFeaturesMap.map(t => t._1 + " : " + "[" + t._2.toArray.mkString(", ") + "]")
+      val jsonMap = "{" + jsonMapEntries.mkString(", ") + "}"
+      val addNotRatedItemsWithFeaturesQuery = s"UPDATE $keyspace.not_rated_items_with_features set items = items + $jsonMap where userid = $userId"
+      inputDatabase.connector.session.execute(addNotRatedItemsWithFeaturesQuery)
+
       val itemIds = cassandraCache.getAllItemIDs()
       notRatedItemModel.save(userId, itemIds)
 
-      val insertIntoUsersQuery = s"INSERT INTO $keyspace.users (userid) values ($userId)";
-      inputDatabase.connector.session.execute(insertIntoUsersQuery)
+      userModel.save(new User(userId))
       val finish = System.currentTimeMillis()
       println("Saved user " + userId + " for " + (finish - start) + " millis.");
       cassandraCache.invalidateUserIDs()
     }
 
     notRatedItemModel.removeNotRatedItem(userId, itemId)
-
-    // TODO remove the row from 2 not rated tables
+    val removeNotRatedItemWithFeaturesQuery = s"DELETE items[$itemId] from $keyspace.not_rated_items_with_features where userid = $userId"
+    inputDatabase.connector.session.execute(removeNotRatedItemWithFeaturesQuery)
 
   }
 }

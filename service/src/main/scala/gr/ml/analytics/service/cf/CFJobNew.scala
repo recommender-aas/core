@@ -1,5 +1,6 @@
 package gr.ml.analytics.service.cf
 
+import com.datastax.driver.core.Row
 import com.typesafe.config.Config
 import gr.ml.analytics.service._
 import org.apache.spark.ml.recommendation.{ALS, ALSModel}
@@ -16,7 +17,6 @@ class CFJobNew(val config: Config,
 
   private val lastNSeconds = params.get("hb_last_n_seconds").get.toString.toInt
   private val ratingsTable: String = config.getString("cassandra.ratings_table")
-  private val predictionsTable: String = config.getString("cassandra.predictions_table")
   private val cfPredictionsColumn: String = config.getString("cassandra.cf_predictions_column")
 
 
@@ -24,7 +24,6 @@ class CFJobNew(val config: Config,
     * Spark job entry point
     */
   def run(): Unit = {
-    sink.clearTable(predictionsTable)
     val allRatingsDF = source.getAllRatings(ratingsTable)
       .select(col("userid").as("userId"), col("itemid").as("itemId"), col("rating"))
 
@@ -41,7 +40,7 @@ class CFJobNew(val config: Config,
     val model = als.fit(allRatingsDF)
 
     for(userId <- source.getUserIdsForLastNSeconds(lastNSeconds)){
-     val notRatedPairsDF = source.getUserItemPairsToRate(userId)
+     val notRatedPairsDF = source.getNotRatedItems(userId)
       val predictedRatingsDS = model.transform(notRatedPairsDF)
         .filter(col("prediction").isNotNull)
         .select("userid", "itemid", "prediction")

@@ -30,6 +30,8 @@ class InputDatabase(override val connector: KeySpaceDef) extends Database[InputD
 
   object notRatedItemsModel extends ConcreteNotRatedItemsModel with connector.Connector
 
+//  object notRatedItemsWithFeaturesModel extends ConcreteNotRatedItemsWithFeaturesModel with connector.Connector
+
   // create tables if not exist
   private val f1 = schemasModel.create.ifNotExists().future()
   private val f2 = recommendationsModel.create.ifNotExists().future()
@@ -38,6 +40,7 @@ class InputDatabase(override val connector: KeySpaceDef) extends Database[InputD
   private val f5 = ratingTimestampModel.create.ifNotExists().future()
   private val f6 = userModel.create.ifNotExists().future()
   private val f7 = notRatedItemsModel.create.ifNotExists().future()
+//  private val f8 = notRatedItemsWithFeaturesModel.create.ifNotExists().future()
 
   try {
     Await.ready(f1, 3.seconds)
@@ -47,6 +50,9 @@ class InputDatabase(override val connector: KeySpaceDef) extends Database[InputD
     Await.ready(f5, 3.seconds)
     Await.ready(f6, 3.seconds)
     Await.ready(f7, 3.seconds)
+//    Await.ready(f8, 3.seconds)
+    // TODO temporary workaround, I hope (until we cannot use Phantom table model)
+    connector.session.execute("create table if not exists rs_new_keyspace.not_rated_items_with_features (userid int primary key, items map<int, frozen<list<double>>>)")
   } catch {
     case e: Throwable =>
       //ignore

@@ -40,11 +40,7 @@ class CBFJobNew(val config: Config,
 
       val model = pipeline.fit(trainingDF)
 
-      // TODO revert
-      val notRatedDF = source.getUserItemPairsToRate(userId) // TODO Q5
-//        .as("d1").join(itemAndFeaturesDF.as("d2"), $"d1.itemId" === $"d2.itemid")
-//        .select($"d1.itemId".as("itemId"), $"d1.userId".as("userId"),
-//          $"d2.features".as("features"))
+      val notRatedDF = source.getNotRatedItemsWithFeatures(userId)
 
       val predictedRatingsDS = model.transform(notRatedDF)
         .filter(col("prediction").isNotNull)

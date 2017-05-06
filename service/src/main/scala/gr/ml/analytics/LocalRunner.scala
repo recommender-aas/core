@@ -81,30 +81,7 @@ object LocalRunner {
 
     val hb = new HybridServiceNew(mainSubDir, config, source, sink, paramsStorage)
 
-    // TODO when adding new rating, we are checking if this is a new user (from users table)
-    // if so, we insert into items_not_rated_by_user and items_not_rated_by_user_cb table
-    // all the items for this user
-    // when we get a new item, we insert into items_not_rated_by_user and items_not_rated_by_user_cb table
-    // combinations of this item and all the users
-    // when new rating is coming we are removing this item + user from those 2 tables...
-
-/*
-    val asDense = udf((array: scala.collection.mutable.WrappedArray[Double]) => Vectors.dense(array.toArray))
-    val result = spark.read
-      .format("org.apache.spark.sql.cassandra")
-      .options(Map("table" -> "test_vector", "keyspace" -> "rs_keyspace"))
-      .load()
-      .withColumn("features_vector", asDense(col("features")))
-      .select(col("itemid"), col("features_vector").as("features"))
-*/
-
     do {
-
-      // TODO try if applying of asDense method to tuple is faster that applying it allready to column (CBFJob)
-      // But be careful so that source.getAllRatings in CFJob does not work mush slower!!!
-
-
-
       cfJob.run()
       cbfJob.run()
       popularItemsJob.run()

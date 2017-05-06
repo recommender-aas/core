@@ -25,7 +25,7 @@ class CFJobNew(val config: Config,
     */
   def run(): Unit = {
     val allRatingsDF = source.getAllRatings(ratingsTable)
-      .select(col("userid").as("userId"), col("itemid").as("itemId"), col("rating"))
+      .select("userId", "itemId", "rating")
 
     val rank = params("cf_rank").toString.toInt
     val regParam = params("cf_reg_param").toString.toDouble
@@ -40,9 +40,9 @@ class CFJobNew(val config: Config,
     val model = als.fit(allRatingsDF)
 
     for(userId <- source.getUserIdsForLastNSeconds(lastNSeconds)){
-     val notRatedPairsDF = source.getNotRatedItems(userId)
+     val notRatedPairsDF = source.getNotRatedItemsWithFeatures(userId).select("userId", "itemId")
       val predictedRatingsDS = model.transform(notRatedPairsDF)
-        .filter(col("prediction").isNotNull)
+        .filter(col("prediction").isNotNull && !col("prediction").isNaN)
         .select("userid", "itemid", "prediction")
 
       predictedRatingsDS.collect().foreach(r => {
@@ -51,8 +51,6 @@ class CFJobNew(val config: Config,
         val prediction = r.getFloat(2)
         sink.storePrediction(userId, itemId, prediction, cfPredictionsColumn)
       })
-
-      //      sink.storePredictions(predictedRatingsDS, cfPredictionsTable)
     }
   }
 }

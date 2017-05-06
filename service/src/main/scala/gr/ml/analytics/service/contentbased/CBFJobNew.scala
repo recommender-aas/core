@@ -21,8 +21,6 @@ class CBFJobNew(val config: Config,
 
   import sparkSession.implicits._
 
-  val asDense = udf((array: scala.collection.mutable.WrappedArray[Double]) => Vectors.dense(array.toArray))
-
   def run(): Unit = {
     for (userId <- source.getUserIdsForLastNSeconds(lastNSeconds)) {
       // each user requires a separate model
@@ -34,9 +32,7 @@ class CBFJobNew(val config: Config,
 
 
       val trainingDF = source.getAllRatings(ratingsTable)
-        .withColumn("features_vector", asDense(col("features")))
-        .select(col("rating").as("label"), col("features_vector").as("features"))
-
+        .select(col("rating").as("label"), col("features"))
 
       val model = pipeline.fit(trainingDF)
 

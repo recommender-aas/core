@@ -14,12 +14,8 @@ trait SourceNew {
   def getUserIdsForLastNSeconds(seconds : Int): Set[Int]
 
   /**
-    * @return DataFrame of itemIds and userIds for rating (required by CF job)
+    * @return DataFrame of userIds, itemIds and features for rating
     */
-  def getNotRatedItems(userId: Int): DataFrame
-
-  def getNotRatedItemsWithFeaturesMap(userId: Int): Map[Int, List[Double]]
-
   def getNotRatedItemsWithFeatures(userId: Int): DataFrame
   /**
     * @return DataFrame of itemIds and numeric features

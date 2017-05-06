@@ -1,6 +1,5 @@
 package gr.ml.analytics.service
 
-import com.datastax.driver.core.Row
 import com.datastax.spark.connector.cql.CassandraConnector
 import com.typesafe.config.Config
 import gr.ml.analytics.cassandra.CassandraUtil
@@ -8,7 +7,6 @@ import org.apache.spark.ml.linalg.Vectors
 import org.apache.spark.sql.functions.{col, lit, udf}
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
-import scala.collection.mutable
 import scala.util.parsing.json.JSON
 
 class CassandraSourceNew(val config: Config,
@@ -19,7 +17,6 @@ class CassandraSourceNew(val config: Config,
   private val keyspace: String = config.getString("cassandra.keyspace")
   private val ratingsTable: String = config.getString("cassandra.ratings_table")
   private val ratingsTimestampTable: String = config.getString("cassandra.ratings_timestamp_table")
-  private val itemsNotRatedByUserTable: String = config.getString("cassandra.items_not_rated_by_user_table")
   private val itemsTable: String = config.getString("cassandra.items_table_prefix") + schemaId
   private val schemasTable: String = config.getString("cassandra.schemas_table")
   private val notRatedItemsWithFeaturesTable: String = config.getString("cassandra.not_rated_items_with_features_table")
@@ -27,13 +24,12 @@ class CassandraSourceNew(val config: Config,
   private val keyCol = "key"
   private val userIdCol = "userid"
   private val itemIdCol = "itemid"
-  private val itemIdsCol = "itemids"
-  private val ratingCol = "rating"
-  private val timestampCol = "timestamp"
   private val predictionCol = "prediction"
   private val spark = CassandraUtil.setCassandraProperties(sparkSession, config)
 
   import spark.implicits._
+
+  val asDense = udf((array: scala.collection.mutable.WrappedArray[Double]) => Vectors.dense(array.toArray))
 
   private lazy val userIDsDS = spark // TODO do we need this?
     .read
@@ -75,8 +71,9 @@ class CassandraSourceNew(val config: Config,
       .format("org.apache.spark.sql.cassandra")
       .options(Map("table" -> tableName, "keyspace" -> keyspace))
       .load()
+      .withColumn("features_vector", asDense(col("features")))
+      .select(col("userid").as("userId"), col("itemid").as("itemId"), col("rating"), col("features_vector").as("features"))
   }
-
 
   override def getUserIdsForLastNSeconds(seconds: Int): Set[Int] = {
     spark.read
@@ -89,12 +86,12 @@ class CassandraSourceNew(val config: Config,
       .map(r => r.getInt(0)).toSet
   }
 
- override def getNotRatedItemsWithFeaturesMap(userId: Int): Map[Int, List[Double]] ={
+ def getNotRatedItemsWithFeaturesMap(userId: Int): Map[Int, List[Double]] ={
     val result = spark.read // TODO don't actually need spark to read this! (check if it is faster without spark)
       .format("org.apache.spark.sql.cassandra")
       .options(Map("table" -> notRatedItemsWithFeaturesTable, "keyspace" -> keyspace))
       .load()
-      .where(col("userid") === 808) // TODO unhardcode!
+      .where(col("userid") === userId)
       .select("items")
       .collect()
 
@@ -102,28 +99,6 @@ class CassandraSourceNew(val config: Config,
       result(0).getMap(0).asInstanceOf[Map[Int, List[Double]]]
     else
       Map()
-  }
-
-  override def getNotRatedItems(userId: Int): DataFrame = {
-    getNotRatedItemsWithFeaturesMap(userId)
-      .keys.toList.toDF("itemId")
-      .withColumn("userId", lit(userId))
-
-
-    // TODO nothing wrong with this code, I just want to try to use single cassandra table for both CF and CB
-//    val itemIds: List[Int] = spark.read
-//      .format("org.apache.spark.sql.cassandra")
-//      .options(Map("table" -> itemsNotRatedByUserTable, "keyspace" -> keyspace))
-//      .load()
-//      .where(col("userid") === userId)
-//      .select(itemIdsCol)
-//      .collect()
-//      .toList(0).getList(0)
-//      .toArray.toList
-//      .asInstanceOf[List[Int]]
-//
-//    itemIds.toDF("itemId")
-//      .withColumn("userId", lit(userId))
   }
 
   override def getNotRatedItemsWithFeatures(userId: Int): DataFrame = {

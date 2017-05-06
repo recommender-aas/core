@@ -8,15 +8,13 @@ import com.typesafe.scalalogging.LazyLogging
 import gr.ml.analytics.cassandra.{CassandraCache, InputDatabase}
 import gr.ml.analytics.domain.{RatingNew, RatingTimestamp, User}
 
-import scala.concurrent.ExecutionContext.Implicits.global
-
 class RatingServiceImpl(val inputDatabase: InputDatabase, val cassandraCache: CassandraCache, val itemService: ItemService)
   extends RatingService with LazyLogging {
 
   private lazy val ratingModel = inputDatabase.ratingModel
   private lazy val userModel = inputDatabase.userModel
   private lazy val ratingTimestampModel = inputDatabase.ratingTimestampModel
-  private lazy val notRatedItemModel = inputDatabase.notRatedItemsModel
+
 //  private lazy val notRatedItemsWithFeaturesModel = inputDatabase.notRatedItemsWithFeaturesModel
 
   def arrayListToList(arrayList: Object): List[Double] ={
@@ -55,16 +53,12 @@ class RatingServiceImpl(val inputDatabase: InputDatabase, val cassandraCache: Ca
       val addNotRatedItemsWithFeaturesQuery = s"UPDATE $keyspace.not_rated_items_with_features set items = items + $jsonMap where userid = $userId"
       inputDatabase.connector.session.execute(addNotRatedItemsWithFeaturesQuery)
 
-      val itemIds = cassandraCache.getAllItemIDs()
-      notRatedItemModel.save(userId, itemIds)
-
       userModel.save(new User(userId))
       val finish = System.currentTimeMillis()
       println("Saved user " + userId + " for " + (finish - start) + " millis.");
       cassandraCache.invalidateUserIDs()
     }
 
-    notRatedItemModel.removeNotRatedItem(userId, itemId)
     val removeNotRatedItemWithFeaturesQuery = s"DELETE items[$itemId] from $keyspace.not_rated_items_with_features where userid = $userId"
     inputDatabase.connector.session.execute(removeNotRatedItemWithFeaturesQuery)
 

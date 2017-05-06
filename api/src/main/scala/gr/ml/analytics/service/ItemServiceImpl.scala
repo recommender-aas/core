@@ -10,8 +10,6 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 class ItemServiceImpl(val inputDatabase: InputDatabase, val cassandraCache: CassandraCache) extends ItemService with LazyLogging {
 
-  private lazy val notRatedItemModel = inputDatabase.notRatedItemsModel
-
   /**
     * @inheritdoc
     */
@@ -77,7 +75,11 @@ class ItemServiceImpl(val inputDatabase: InputDatabase, val cassandraCache: Cass
         cassandraCache.invalidateItemIDs()
 
         val userIds = cassandraCache.getAllUserIDs()
-        userIds.foreach(userId => notRatedItemModel.addNotRatedItem(userId, itemId.toString.toInt))// TODO int type is hardcoded...
+        userIds.foreach(userId => {
+          val addNotRatedItemWithFeaturesQuery = s"UPDATE $keyspace.not_rated_items_with_features " +
+            s"set items = items + {$itemId : $featuresString} where userid = $userId";
+          inputDatabase.connector.session.execute(addNotRatedItemWithFeaturesQuery)
+        })
 
         Some(item(idName.toLowerCase()).asInstanceOf[Integer].intValue())
       case None =>

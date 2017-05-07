@@ -11,9 +11,9 @@ class CBFJobNew(val config: Config,
              val source: SourceNew,
              val sink: SinkNew,
              val params: Map[String, Any],
-             val pipeline: Pipeline)(implicit val sparkSession: SparkSession) {
+             val pipeline: Pipeline,
+             val userIds: Set[Int])(implicit val sparkSession: SparkSession) {
 
-  private val lastNSeconds = params.get("hb_last_n_seconds").get.toString.toInt
   private val keyspace: String = config.getString("cassandra.keyspace")
   private val ratingsTable: String = config.getString("cassandra.ratings_table")
 
@@ -22,7 +22,7 @@ class CBFJobNew(val config: Config,
   import sparkSession.implicits._
 
   def run(): Unit = {
-    for (userId <- source.getUserIdsForLastNSeconds(lastNSeconds)) {
+    for (userId <- userIds) {
       // each user requires a separate model
       // CBF steps:
       // 1. select DataFrame of (label, features) for a given user
@@ -46,8 +46,10 @@ class CBFJobNew(val config: Config,
         val userId = r.getInt(0)
         val itemId = r.getInt(1)
         val prediction = r.getDouble(2).toFloat
-        sink.storePrediction(userId, itemId, prediction, cbPredictionsColumn)
+        sink.updatePredictions(userId, itemId, prediction, cbPredictionsColumn)
       })
+
+      sink.storeRecommendedItemIDs(userId)
     }
   }
 }
@@ -59,10 +61,11 @@ object CBFJobNew {
             source: SourceNew,
             sink: SinkNew,
             pipeline: Pipeline,
-            params: Map[String, Any]
+            params: Map[String, Any],
+            userIds: Set[Int]
            )(implicit sparkSession: SparkSession): CBFJobNew = {
 
-    new CBFJobNew(config, source, sink, params, pipeline)
+    new CBFJobNew(config, source, sink, params, pipeline, userIds)
   }
 
 

@@ -22,5 +22,5 @@ trait SourceNew {
     */
   def getAllItemsAndFeatures(): DataFrame
 
-  def getPredictionsForUser(userId: Int, table: String): DataFrame
+  def getPredictionsForUser(userId: Int, predictionColumn: String): DataFrame
 }

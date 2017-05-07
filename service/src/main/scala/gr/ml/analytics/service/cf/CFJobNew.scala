@@ -1,6 +1,5 @@
 package gr.ml.analytics.service.cf
 
-import com.datastax.driver.core.Row
 import com.typesafe.config.Config
 import gr.ml.analytics.service._
 import org.apache.spark.ml.recommendation.{ALS, ALSModel}
@@ -13,9 +12,9 @@ import org.apache.spark.sql.functions._
 class CFJobNew(val config: Config,
             val source: SourceNew,
             val sink: SinkNew,
-            val params: Map[String, Any])(implicit val sparkSession: SparkSession) {
+            val params: Map[String, Any],
+            val userIds: Set[Int])(implicit val sparkSession: SparkSession) {
 
-  private val lastNSeconds = params.get("hb_last_n_seconds").get.toString.toInt
   private val ratingsTable: String = config.getString("cassandra.ratings_table")
   private val cfPredictionsColumn: String = config.getString("cassandra.cf_predictions_column")
 
@@ -39,7 +38,7 @@ class CFJobNew(val config: Config,
 
     val model = als.fit(allRatingsDF)
 
-    for(userId <- source.getUserIdsForLastNSeconds(lastNSeconds)){
+    for(userId <- userIds){
      val notRatedPairsDF = source.getNotRatedItemsWithFeatures(userId).select("userId", "itemId")
       val predictedRatingsDS = model.transform(notRatedPairsDF)
         .filter(col("prediction").isNotNull && !col("prediction").isNaN)
@@ -49,8 +48,10 @@ class CFJobNew(val config: Config,
         val userId = r.getInt(0)
         val itemId = r.getInt(1)
         val prediction = r.getFloat(2)
-        sink.storePrediction(userId, itemId, prediction, cfPredictionsColumn)
+        sink.updatePredictions(userId, itemId, prediction, cfPredictionsColumn)
       })
+
+      sink.storeRecommendedItemIDs(userId)
     }
   }
 }
@@ -60,9 +61,10 @@ object CFJobNew extends Constants {
   def apply(config: Config,
             source: SourceNew,
             sink: SinkNew,
-            params: Map[String, Any])(implicit sparkSession: SparkSession): CFJobNew = {
+            params: Map[String, Any],
+            userIds: Set[Int])(implicit sparkSession: SparkSession): CFJobNew = {
 
-    new CFJobNew(config, source, sink, params)
+    new CFJobNew(config, source, sink, params, userIds)
   }
 
   private def readModel(spark: SparkSession): ALSModel = {

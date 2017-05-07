@@ -20,34 +20,22 @@ class CassandraSourceNew(val config: Config,
   private val itemsTable: String = config.getString("cassandra.items_table_prefix") + schemaId
   private val schemasTable: String = config.getString("cassandra.schemas_table")
   private val notRatedItemsWithFeaturesTable: String = config.getString("cassandra.not_rated_items_with_features_table")
+  private val predictionsTable: String = config.getString("cassandra.predictions_table")
 
-  private val keyCol = "key"
   private val userIdCol = "userid"
   private val itemIdCol = "itemid"
-  private val predictionCol = "prediction"
   private val spark = CassandraUtil.setCassandraProperties(sparkSession, config)
 
   import spark.implicits._
 
   val asDense = udf((array: scala.collection.mutable.WrappedArray[Double]) => Vectors.dense(array.toArray))
 
-  private lazy val userIDsDS = spark // TODO do we need this?
-    .read
-    .format("org.apache.spark.sql.cassandra")
-    .options(Map("table" -> itemsTable, "keyspace" -> keyspace))
-    .load()
-    .select(itemIdCol)
-
-  private lazy val itemIDsDS = getAllRatings(ratingsTable) // TODO do we need this?
-    .select(col(itemIdCol))
-    .distinct()
-
-  override def getPredictionsForUser(userId: Int, table: String): DataFrame = {
+  override def getPredictionsForUser(userId: Int, predictionColumn: String): DataFrame = {
     spark.read
       .format("org.apache.spark.sql.cassandra")
-      .options(Map("table" -> table, "keyspace" -> keyspace))
+      .options(Map("table" -> predictionsTable, "keyspace" -> keyspace))
       .load()
-      .select(keyCol, userIdCol, itemIdCol, predictionCol)
+      .select(userIdCol, itemIdCol, predictionColumn)
     .where(col(userIdCol) === userId)
   }
 

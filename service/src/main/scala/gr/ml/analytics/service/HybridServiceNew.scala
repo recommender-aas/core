@@ -4,7 +4,7 @@ import java.io.File
 
 import com.typesafe.config.{Config, ConfigFactory}
 import gr.ml.analytics.service.cf.{CFJobNew, CFPredictionService}
-import gr.ml.analytics.service.contentbased.{CBPredictionService, RandomForestEstimatorBuilder}
+import gr.ml.analytics.service.contentbased.{CBFJobNew, CBPredictionService, RandomForestEstimatorBuilder}
 import gr.ml.analytics.service.popular.PopularItemsJobNew
 import gr.ml.analytics.util._
 import org.apache.spark.ml.Pipeline
@@ -15,7 +15,8 @@ class HybridServiceNew(val subRootDir: String,
                     val config: Config,
                     val source: SourceNew,
                     val sink: SinkNew,
-                    val paramsStorage: ParamsStorage)(implicit val sparkSession: SparkSession) extends Constants{
+                    val paramsStorage: ParamsStorage,
+                    val userIds: Set[Int])(implicit val sparkSession: SparkSession) extends Constants{
 
   import sparkSession.implicits._
 
@@ -23,6 +24,8 @@ class HybridServiceNew(val subRootDir: String,
   val cbPredictionService = new CBPredictionService(subRootDir)
   val csv2svmConverter = new CSVtoSVMConverter(subRootDir)
 
+  private val cfPredictionsColumn: String = config.getString("cassandra.cf_predictions_column")
+  private val cbPredictionsColumn: String = config.getString("cassandra.cb_predictions_column")
   private val hybridPredictionsColumn: String = config.getString("cassandra.hybrid_predictions_column")
 
   def run(cbPipeline: Pipeline): Unit ={
@@ -32,20 +35,11 @@ class HybridServiceNew(val subRootDir: String,
     while(true) {
       Thread.sleep(5000) // can be increased for production
 
-
-      CFJobNew(config, source, sink, paramsStorage.getParams()).run() // TODO add logging somehow
-
-      // CBJob:
-      val lastNSeconds = paramsStorage.getParams()("hb_last_n_seconds").toString.toInt
-      val userIds = source.getUserIdsForLastNSeconds(lastNSeconds)
-      for(userId <- userIds){
-        Util.tryAndLog(cbPredictionService.updateModelForUser(cbPipeline, userId), subRootDir + " :: Content-based:: Updating model for user " + userId)
-        Util.tryAndLog(cbPredictionService.updatePredictionsForUser(userId), subRootDir + " :: Content-based:: Updating predictions for User " + userId)
-        LoggerFactory.getLogger("progressLogger").info(subRootDir + " :: ##################### END OF ITERATION ##########################")
-      }
+      CFJobNew(config, source, sink, paramsStorage.getParams(), userIds).run() // TODO add logging somehow
+      CBFJobNew(config, source, sink, cbPipeline, paramsStorage.getParams(), userIds).run()
 
       val collaborativeWeight = paramsStorage.getParams()("hb_collaborative_weight").toString.toLong
-      combinePredictionsForLastUsers(collaborativeWeight)
+      combinePredictions(collaborativeWeight)
     }
 
   }
@@ -64,36 +58,23 @@ class HybridServiceNew(val subRootDir: String,
     LoggerFactory.getLogger("progressLogger").info(subRootDir + " :: Startup time took: " + (finishTime - startTime) + " millis.")
   }
 
-//  def runOneCycle(cbPipeline: Pipeline): Unit ={
-//    Util.tryAndLog(cfPredictionService.updateModel(), subRootDir + " :: Collaborative:: Updating model")
-//    val lastNSeconds = paramsStorage.getParams().get("hb_last_n_seconds").get.toString.toInt
-//    val userIds = source.getUserIdsForLastNSeconds(lastNSeconds)
-//    for(userId <- userIds){
-//      Util.tryAndLog(cbPredictionService.updateModelForUser(cbPipeline, userId), subRootDir + " :: Content-based:: Updating model for user " + userId)
-//      Util.tryAndLog(cfPredictionService.updatePredictionsForUser(userId), subRootDir + " :: Collaborative:: Updating predictions for User " + userId)
-//      Util.tryAndLog(cbPredictionService.updatePredictionsForUser(userId), subRootDir + " :: Content-based:: Updating predictions for User " + userId)
-//      LoggerFactory.getLogger("progressLogger").info(subRootDir + " :: ##################### END OF ITERATION ##########################")
-//    }
-//  }
-
   def multiplyByWeight(predictions: List[List[String]], weight: Double): List[List[String]] ={
     predictions.map(l=>List(l(0), l(1), (l(2).toDouble * weight).toString))
   }
 
-  def combinePredictionsForLastUsers(collaborativeWeight: Double): Unit ={
-    val lastNSeconds = paramsStorage.getParams()("hb_last_n_seconds").toString.toInt
-    val userIds = source.getUserIdsForLastNSeconds(lastNSeconds) // TODO not good, that we have to get it every time...
-    for(userId <- userIds){
+  def combinePredictions(collaborativeWeight: Double): Unit ={
+  for(userId <- userIds){
       combinePredictionsForUser(userId, collaborativeWeight)
     }
   }
 
   def combinePredictionsForUser(userId: Int, collaborativeWeight: Double): Unit ={
-    // TODO FIXME:
-    val cfPredictionsDF = source.getPredictionsForUser(userId, "FIXME!!").withColumn("prediction", $"prediction" * collaborativeWeight)
-    val cbPredictionsDF = source.getPredictionsForUser(userId, "FIXME!!").withColumn("prediction", $"prediction" * (1-collaborativeWeight))
+    val cfPredictionsDF = source.getPredictionsForUser(userId, cfPredictionsColumn)
+      .withColumn("prediction", $"prediction" * collaborativeWeight)
+    val cbPredictionsDF = source.getPredictionsForUser(userId, cbPredictionsColumn)
+      .withColumn("prediction", $"prediction" * (1-collaborativeWeight))
 
-    val hybridPredictions = cfPredictionsDF // TODO should we use spark here?
+    val hybridPredictions = cfPredictionsDF
       .select("key","userid", "itemid", "prediction")
       .as("d1").join(cbPredictionsDF.as("d2"), $"d1.key" === $"d2.key")
       .withColumn("hybrid_prediction", $"d1.prediction" + $"d2.prediction")
@@ -106,11 +87,11 @@ class HybridServiceNew(val subRootDir: String,
       val userId = r.getInt(0)
       val itemId = r.getInt(1)
       val prediction = r.getFloat(2)
-      sink.storePrediction(userId, itemId, prediction, hybridPredictionsColumn)
+      sink.updatePredictions(userId, itemId, prediction, hybridPredictionsColumn)
     })
 
     val finalPredictedIDs = hybridPredictions.select("itemid").collect().map(r => r.getInt(0)).toList
-    sink.storeRecommendedItemIDs(userId, finalPredictedIDs)
+//    sink.storeRecommendedItemIDs(userId, finalPredictedIDs) // TODO save as list, not : separated String!!
   }
 }
 

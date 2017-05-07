@@ -6,9 +6,9 @@ trait SinkNew {
   /**
     * General method for storing predictions (CF, CB and final)
     */
-  def storePrediction(userId: Int, itemId: Int, predictedValue: Float, predictionColumn: String)
+  def updatePredictions(userId: Int, itemId: Int, predictedValue: Float, predictionColumn: String)
 
-  def storeRecommendedItemIDs(userId: Int, recommendedItemIds: List[Int])
+  def storeRecommendedItemIDs(userId: Int)
 
   def clearTable(table: String)
 

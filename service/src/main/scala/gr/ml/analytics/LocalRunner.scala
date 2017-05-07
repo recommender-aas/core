@@ -74,18 +74,19 @@ object LocalRunner {
     val source = new CassandraSourceNew(config, featureExtractor)
     val sink = new CassandraSinkNew(config)
 
-    val cfJob = CFJobNew(config, source, sink, params)
-    val cbfJob = CBFJobNew(config, source, sink, pipeline, params)
+    val lastNSeconds = params.get("hb_last_n_seconds").get.toString.toInt
+    val userIds: Set[Int] = source.getUserIdsForLastNSeconds(lastNSeconds)
+    val cfJob = CFJobNew(config, source, sink, params, userIds)
+    val cbfJob = CBFJobNew(config, source, sink, pipeline, params, userIds)
     val popularItemsJob = PopularItemsJobNew(source, config)
 //    val clusteringJob = ItemClusteringJob(source, sink, config)
 
-    val hb = new HybridServiceNew(mainSubDir, config, source, sink, paramsStorage)
+    val hb = new HybridServiceNew(mainSubDir, config, source, sink, paramsStorage, userIds)
 
     do {
       cfJob.run()
       cbfJob.run()
-      popularItemsJob.run()
-      hb.combinePredictionsForLastUsers(0.1)
+//      popularItemsJob.run()
 //      clusteringJob.run()
 
 

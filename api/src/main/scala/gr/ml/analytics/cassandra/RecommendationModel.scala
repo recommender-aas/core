@@ -14,14 +14,11 @@ class RecommendationModel extends CassandraTable[ConcreteRecommendationModel, Re
 
   override def tableName: String = "final_recommendations"
 
-  object userid extends IntColumn(this) with PartitionKey
+  object userId extends IntColumn(this) with PartitionKey
 
-  object recommended_ids extends StringColumn(this)
+  object itemIds extends ListColumn[Int](this)
 
-  override def fromRow(r: Row): Recommendation = Recommendation(
-    userid(r),
-    recommended_ids(r).split(":").map(itemId => itemId.toInt).toList
-  )
+  override def fromRow(r: Row): Recommendation = Recommendation(userId(r), itemIds(r))
 }
 
 /**
@@ -37,9 +34,16 @@ abstract class ConcreteRecommendationModel extends RecommendationModel with Root
 
   def getOne(userId: Int): Future[Option[Recommendation]] = {
     select
-      .where(_.userid eqs userId)
+      .where(_.userId eqs userId)
       .consistencyLevel_=(ConsistencyLevel.ONE)
       .one
   }
 
+  def save(userId: Int, itemIDs: List[Int]) = {
+    insert
+      .value(_.userId, userId)
+      .value(_.itemIds, itemIDs)
+      .consistencyLevel_=(ConsistencyLevel.ONE)
+      .future()
+  }
 }

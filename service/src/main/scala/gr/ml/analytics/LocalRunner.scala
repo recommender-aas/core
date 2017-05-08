@@ -79,14 +79,13 @@ object LocalRunner {
     val cfJob = CFJobNew(config, source, sink, params, userIds)
     val cbfJob = CBFJobNew(config, source, sink, pipeline, params, userIds)
     val popularItemsJob = PopularItemsJobNew(source, config)
-//    val clusteringJob = ItemClusteringJob(source, sink, config)
+    //    val clusteringJob = ItemClusteringJob(source, sink, config)
 
-    val hb = new HybridServiceNew(mainSubDir, config, source, sink, paramsStorage, userIds)
+    popularItemsJob.run() // TODO should we save recent items too ?
 
     do {
       cfJob.run()
       cbfJob.run()
-//      popularItemsJob.run()
 //      clusteringJob.run()
 
 

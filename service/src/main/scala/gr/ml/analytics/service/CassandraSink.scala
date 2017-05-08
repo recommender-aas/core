@@ -25,15 +25,11 @@ class CassandraSink(val config: Config)
   private val itemClustersTable: String = config.getString("cassandra.item_clusters_table")
   private val notRatedItemsWithFeaturesTable: String = config.getString("cassandra.not_rated_items_with_features_table")
 
-  private val userIdCol = "userid"
-  private val itemIdCol = "itemid"
-  private val ratingCol = "rating"
-
   CassandraConnector(sparkSession.sparkContext).withSessionDo { session =>
     session.execute(s"CREATE KEYSPACE IF NOT EXISTS $keyspace WITH replication={'class':'SimpleStrategy', 'replication_factor':1}")
     session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$cfPredictionsTable (key text PRIMARY KEY, userid int, itemid int, prediction float)")
     session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$cbPredictionsTable (key text PRIMARY KEY, userid int, itemid int, prediction float)")
-    session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$popularItemsTable (itemid int PRIMARY KEY, rating float, n_ratings int)")
+    session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$popularItemsTable ( dummy_partition int, itemid int, sum_ratings float, num_ratings int, primary key ((dummy_partition), sum_ratings)) with clustering order by (sum_ratings desc)")
     session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$hybridPredictionsTable (key text PRIMARY KEY, userid int, itemid int, prediction float)")
     session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$recommendationsTable (userid int PRIMARY KEY, recommended_ids text)")
     session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$trainRatingsTable (key text PRIMARY KEY, userid int, itemid int, rating float)")

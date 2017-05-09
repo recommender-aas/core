@@ -10,6 +10,8 @@ import scala.concurrent.ExecutionContext.Implicits.global
 
 class ItemServiceImpl(val inputDatabase: InputDatabase, val cassandraCache: CassandraCache) extends ItemService with LazyLogging {
 
+//  private lazy val notRatedItemsWithFeaturesModel = inputDatabase.notRatedItemsWithFeaturesModel
+
   /**
     * @inheritdoc
     */
@@ -64,10 +66,13 @@ class ItemServiceImpl(val inputDatabase: InputDatabase, val cassandraCache: Cass
         val res = inputDatabase.connector.session.execute(query).wasApplied()
 
         // inserting into dense items table
-        val itemId = item.get(idName).get
+        val itemId = item.get(idName).get.toString.toInt
 
-        val featuresString = Util.getFeaturesValuesString(schemaMap, item)
-        val insertDenseItemQuery = s"INSERT INTO $keyspace.$tableNameDense (itemid, features) values ($itemId, $featuresString)";
+
+        val featureValues: List[Double] = Util.getFeaturesValues(schemaMap, item)
+        val featuresString = "[" + featureValues.toArray.mkString(", ") + "]"
+
+        val insertDenseItemQuery = s"INSERT INTO $keyspace.$tableNameDense (itemid, features) values ($itemId, $featuresString)"
         inputDatabase.connector.session.execute(insertDenseItemQuery)
 
         logger.info(s"Creating item: '$query' Result: $res")
@@ -79,6 +84,7 @@ class ItemServiceImpl(val inputDatabase: InputDatabase, val cassandraCache: Cass
           val addNotRatedItemWithFeaturesQuery = s"UPDATE $keyspace.not_rated_items_with_features " +
             s"set items = items + {$itemId : $featuresString} where userid = $userId";
           inputDatabase.connector.session.execute(addNotRatedItemWithFeaturesQuery)
+//          notRatedItemsWithFeaturesModel.addNotRatedItem(userId, itemId, featureValues)
         })
 
         Some(item(idName.toLowerCase()).asInstanceOf[Integer].intValue())

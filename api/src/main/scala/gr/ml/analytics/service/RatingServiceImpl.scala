@@ -3,7 +3,6 @@ package gr.ml.analytics.service
 import java.util.Calendar
 
 import com.datastax.driver.core.Row
-import com.typesafe.config.{Config, ConfigFactory}
 import com.typesafe.scalalogging.LazyLogging
 import gr.ml.analytics.cassandra.{CassandraCache, InputDatabase}
 import gr.ml.analytics.domain.{RatingNew, RatingTimestamp, User}
@@ -20,7 +19,6 @@ class RatingServiceImpl(val inputDatabase: InputDatabase, val cassandraCache: Ca
   def arrayListToList(arrayList: Object): List[Double] ={
     arrayList.asInstanceOf[java.util.ArrayList[Double]].toArray.toList.asInstanceOf[List[Double]]
   }
-
   /**
     * @inheritdoc
     */
@@ -30,7 +28,6 @@ class RatingServiceImpl(val inputDatabase: InputDatabase, val cassandraCache: Ca
     val start = System.currentTimeMillis()
     val getItemQuery = s"SELECT features from $keyspace.items_0_dense where itemid = $itemId"; // TODO unhardcode!
     val features = inputDatabase.connector.session.execute(getItemQuery).one().getObject("features")
-//    val featuresList = features.asInstanceOf[java.util.ArrayList[Double]].toArray.toList.asInstanceOf[List[Double]]
     val ratingObject = new RatingNew(userId, itemId, rating, arrayListToList(features))
     ratingModel.save(ratingObject)
 
@@ -42,7 +39,6 @@ class RatingServiceImpl(val inputDatabase: InputDatabase, val cassandraCache: Ca
     val foundUsers = inputDatabase.connector.session.execute(getUserQuery).all()
 
     if(foundUsers.size == 0){
-      // TODO testing, remove afterwards
       val getAllItemsAndFeaturesQuery = s"SELECT itemid, features FROM $keyspace.items_0_dense"; // TODO unhardcode schema
       val allItemsWithFeaturesMap = inputDatabase.connector.session.execute(getAllItemsAndFeaturesQuery).all().toArray
         .map(r => (r.asInstanceOf[Row].getInt(0), arrayListToList(r.asInstanceOf[Row].getObject(1)))).toMap
@@ -61,6 +57,6 @@ class RatingServiceImpl(val inputDatabase: InputDatabase, val cassandraCache: Ca
 
     val removeNotRatedItemWithFeaturesQuery = s"DELETE items[$itemId] from $keyspace.not_rated_items_with_features where userid = $userId"
     inputDatabase.connector.session.execute(removeNotRatedItemWithFeaturesQuery)
-
+//    notRatedItemsWithFeaturesModel.removeNotRatedItem(userId, itemId)
   }
 }

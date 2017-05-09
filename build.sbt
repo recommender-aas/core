@@ -33,7 +33,7 @@ val buildInfoSettings = Seq(
 
 val akkaVersion = "2.4.17"
 val akkaHttpVersion = "10.0.5"
-val phantomVersion = "2.7.5"
+val phantomVersion = "2.7.6"
 val sparkVersion = "2.0.1"
 
 // module structure configuration

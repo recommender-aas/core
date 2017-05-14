@@ -54,8 +54,8 @@ object EstimationService extends App with Constants{
     )
 
   pipelines.foreach(pipeline => {
-    CFJob(config, source, sink, paramsStorage.getParams()).run()
-    CBFJob(config, source, sink, pipeline, paramsStorage.getParams()).run()
+//    CFJob(config, source, sink, paramsStorage.getParams()).run()
+//    CBFJob(config, source, sink, pipeline, paramsStorage.getParams()).run()
 
     (0.1 to 1.0 by 0.05).foreach(cfWeight => {
       hb.combinePredictionsForLastUsers(cfWeight)

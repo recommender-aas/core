@@ -31,7 +31,7 @@ class CBFJob(val config: Config,
       // 4. perform predictions using created model
 
       // TODO Slow. Improve performance
-      val trainingDF = source.getRatings(ratingsTable)
+      val trainingDF = source.getRatings(ratingsTable) // TODO Q4
         .filter($"userid" === userId)
         .select("itemid", "rating")
         .as("d1").join(itemAndFeaturesDF.as("d2"), $"d1.itemid" === $"d2.itemid")
@@ -40,7 +40,7 @@ class CBFJob(val config: Config,
 
       val model = pipeline.fit(trainingDF)
 
-      val notRatedDF = source.getUserItemPairsToRate(userId)
+      val notRatedDF = source.getUserItemPairsToRate(userId) // TODO Q5
         .as("d1").join(itemAndFeaturesDF.as("d2"), $"d1.itemId" === $"d2.itemid")
         .select($"d1.itemId".as("itemId"), $"d1.userId".as("userId"),
           $"d2.features".as("features"))

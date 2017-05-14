@@ -32,6 +32,7 @@ class SchemaServiceImpl(inputDatabase: CassandraStorage) extends SchemaService w
     schemasModel.save(Schema(schemaId, jsonSchema))
 
     val tableName = Util.itemsTableName(schemaId)
+    val tableNameDense = Util.itemsTableName(schemaId) + "_dense"
 
     // create cassandra table for items
     val (pkColumnName, pkColumnType) = Util.extractIdMetadata(jsonSchema)
@@ -44,9 +45,13 @@ class SchemaServiceImpl(inputDatabase: CassandraStorage) extends SchemaService w
       }
 
     val q = s"CREATE TABLE ${schemasModel.keySpace}.$tableName ($pkColumnName $pkColumnType PRIMARY KEY $columnsString )"
-
     logger.info(s"Creating: $q")
     schemasModel.session.execute(q).getColumnDefinitions
+
+    val q2 = s"CREATE TABLE ${schemasModel.keySpace}.$tableNameDense (itemid $pkColumnType PRIMARY KEY, features list<double> )" // TODO unhardcode!
+    logger.info(s"Creating: $q2")
+    schemasModel.session.execute(q2).getColumnDefinitions
+
     schemaId
   }
 }

@@ -34,7 +34,7 @@ val buildInfoSettings = Seq(
 
 val akkaVersion = "2.4.17"
 val akkaHttpVersion = "10.0.5"
-val phantomVersion = "2.7.5"
+val phantomVersion = "2.7.6"
 val sparkVersion = "2.0.1"
 
 // module structure configuration
@@ -92,6 +92,7 @@ lazy val api = project.in(file("api"))
     libraryDependencies += "com.github.swagger-akka-http" %% "swagger-akka-http" % "0.9.1",
     libraryDependencies += "com.github.nscala-time" %% "nscala-time" % "2.14.0",
     libraryDependencies += "com.outworkers" %% "phantom-dsl" % phantomVersion,
+    libraryDependencies += "org.json4s" % "json4s-native_2.11" % "3.5.1",
     libraryDependencies += "com.github.tototoshi" %% "scala-csv" % "1.3.0",
     libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0",
     libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.1.7",

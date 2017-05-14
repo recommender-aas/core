@@ -48,4 +48,18 @@ object Util {
 
   def itemsTableName(schemaId: Int): String = s"items_$schemaId"
 
+  def getFeaturesValues(schemaMap: Map[String, Any], item: Map[String, Any]): List[Double] ={
+
+    val allowedTypes = Set("double", "float")
+    val featureColumnNames = schemaMap("features").asInstanceOf[List[Map[String, String]]]
+      .filter((colDescription: Map[String, Any]) => allowedTypes.contains(colDescription("type").asInstanceOf[String].toLowerCase))
+      .map(colDescription => colDescription("name"))
+
+    val featureValues: List[Double] = featureColumnNames
+      .map(name => item.get(name))
+      .map(some => some.get.toString.toDouble)
+      .toArray.toList
+      featureValues
+    }
+
 }

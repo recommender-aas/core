@@ -3,6 +3,11 @@ package gr.ml.analytics
 import akka.actor.{ActorRef, ActorSystem, Props}
 import akka.event.Logging
 import akka.http.scaladsl.Http
+import akka.stream.ActorMaterializer
+import Configuration._
+import gr.ml.analytics.api.{ItemsAPI, InteractionsAPI, RecommenderAPI, SchemasAPI}
+import gr.ml.analytics.cassandra.{CassandraCache, CassandraConnector}
+import gr.ml.analytics.service._
 import akka.http.scaladsl.server.Directives._
 import akka.stream.ActorMaterializer
 import ch.megard.akka.http.cors.CorsDirectives._
@@ -45,31 +50,33 @@ object Application extends App {
 
   val database = new CassandraStorage(cassandraConnector.connector)
 
-//  def onlineCassandraConnector = CassandraConnector(
-//    cassandraHosts,
-//    cassandraKeyspace,
-//    Some(cassandraUsername),
-//    Some(cassandraPassword))
   val onlineDatabase = new OnlineCassandraStorage(cassandraConnector.connector)
 
-  // online recommender
-  val onlineItemToItemCF = new ItemItemRecommender(onlineDatabase)
+  var onlineItemToItemCFOption: Option[ItemItemRecommender] = None
+  var onlineLearningActorOption: Option[ActorRef] = None
 
-  val onlineLearningActor: ActorRef = system.actorOf(Props(new OnlineLearningActor(onlineItemToItemCF)), "online_learning_actor")
+  if (onlineLearningEnable) {
+    // online recommender
+    onlineItemToItemCFOption = Some(new ItemItemRecommender(onlineDatabase))
 
+    val onlineLearningActor: ActorRef = system.actorOf(Props(new OnlineLearningActor(onlineItemToItemCFOption.get)), "online_learning_actor")
+  }
+
+  val cassandraCache = new CassandraCache(database)
   // create services
   val schemasService: SchemaService = new SchemaServiceImpl(database)
-  val recommenderService: RecommenderService = new RecommenderServiceImpl(database, onlineItemToItemCF)
-  var itemsService: ItemService = new ItemServiceImpl(database)
-  val ratingsService: RatingService = new RatingServiceImpl(database)
+
+  val recommenderService: RecommenderService = new RecommenderServiceImpl(database, onlineItemToItemCFOption)
+  var itemService: ItemService = new ItemServiceImpl(database, cassandraCache)
+  val ratingsService: RatingService = new RatingServiceImpl(database, cassandraCache, itemService)
   val actionService: ActionService = new ActionServiceImpl(database)
 
   // create apis
   val recommenderApi = new RecommenderAPI(recommenderService)
-  val itemsApi = new ItemsAPI(itemsService)
+  val itemsApi = new ItemsAPI(itemService)
   val schemasApi = new SchemasAPI(schemasService)
   val actionsApi = new ActionsAPI(actionService)
-  val ratingsApi = new InteractionsAPI(ratingsService, actionService, onlineLearningActor)
+  val ratingsApi = new InteractionsAPI(ratingsService, actionService, onlineLearningActorOption)
 
   // enable cross origin requests
   // enable swagger

@@ -1,15 +1,14 @@
 package gr.ml.analytics
 
-import java.time.{Duration, Instant, LocalDateTime, Period}
+import java.time.{Duration, Instant}
 
 import com.typesafe.config.ConfigFactory
 import gr.ml.analytics.service._
 import gr.ml.analytics.service.HybridServiceRunner.mainSubDir
-import gr.ml.analytics.service.cf.CFJob
-import gr.ml.analytics.service.clustering.ItemClusteringJob
+import gr.ml.analytics.service.cf.CFJobNew
 import gr.ml.analytics.util.RedisParamsStorage
-import gr.ml.analytics.service.contentbased.{CBFJob, LinearRegressionWithElasticNetBuilder}
-import gr.ml.analytics.service.popular.PopularItemsJob
+import gr.ml.analytics.service.contentbased.{CBFJobNew, LinearRegressionWithElasticNetBuilder}
+import gr.ml.analytics.service.popular.PopularItemsJobNew
 import gr.ml.analytics.util.{ParamsStorage, Util}
 import org.apache.spark.sql.SparkSession
 
@@ -55,6 +54,7 @@ object LocalRunner {
     val paramsStorage: ParamsStorage = new RedisParamsStorage
 
     implicit val spark = getSparkSession
+    import spark.implicits._
 
     val params = paramsStorage.getParams()
 
@@ -71,22 +71,21 @@ object LocalRunner {
 
     val pipeline = LinearRegressionWithElasticNetBuilder.build("")
 
-    val source = new CassandraSource(config, featureExtractor)
-    val sink = new CassandraSink(config)
+    val source = new CassandraSourceNew(config, featureExtractor)
+    val sink = new CassandraSinkNew(config)
 
-    val cfJob = CFJob(config, source, sink, params)
-    val cbfJob = CBFJob(config, source, sink, pipeline, params)
-    val popularItemsJob = PopularItemsJob(source, config)
-//    val clusteringJob = ItemClusteringJob(source, sink, config)
+    val lastNSeconds = params.get("hb_last_n_seconds").get.toString.toInt
+    val userIds: Set[Int] = source.getUserIdsForLastNSeconds(lastNSeconds)
+    val cfJob = CFJobNew(config, source, sink, params, userIds)
+    val cbfJob = CBFJobNew(config, source, sink, pipeline, params, userIds)
+    val popularItemsJob = PopularItemsJobNew(source, config)
+    //    val clusteringJob = ItemClusteringJob(source, sink, config)
 
-    val hb = new HybridService(mainSubDir, config, source, sink, paramsStorage)
+    popularItemsJob.run() // TODO should we save recent items too ?
 
     do {
-
       cfJob.run()
       cbfJob.run()
-      popularItemsJob.run()
-      hb.combinePredictionsForLastUsers(0.1)
 //      clusteringJob.run()
 
 

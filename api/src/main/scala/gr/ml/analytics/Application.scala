@@ -58,14 +58,14 @@ object Application extends App {
   if (onlineLearningEnable) {
     // online recommender
     onlineItemToItemCFOption = Some(new ItemItemRecommender(onlineDatabase))
-
-    val onlineLearningActor: ActorRef = system.actorOf(Props(new OnlineLearningActor(onlineItemToItemCFOption.get)), "online_learning_actor")
+    onlineLearningActorOption = Some(
+      system.actorOf(Props(new OnlineLearningActor(onlineItemToItemCFOption.get)), "online_learning_actor"))
   }
 
   val cassandraCache = new CassandraCache(database)
+
   // create services
   val schemasService: SchemaService = new SchemaServiceImpl(database)
-
   val recommenderService: RecommenderService = new RecommenderServiceImpl(database, onlineItemToItemCFOption)
   var itemService: ItemService = new ItemServiceImpl(database, cassandraCache)
   val ratingsService: RatingService = new RatingServiceImpl(database, cassandraCache, itemService)

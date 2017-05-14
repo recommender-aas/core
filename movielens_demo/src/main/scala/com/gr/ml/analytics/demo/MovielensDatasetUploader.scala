@@ -70,7 +70,7 @@ object MovielensDatasetUploader extends App with Constants with LazyLogging {
       entity = HttpEntity(ContentTypes.`application/json`, schema.toString())))
 
     future.onFailure { case e => e.printStackTrace() }
-    Await.ready(future, 10.seconds)
+    Await.ready(future, 20.seconds)
     future.value.get match {
       case Success(response) =>
         // TODO more elegant way to get Int value from response?
@@ -118,7 +118,7 @@ object MovielensDatasetUploader extends App with Constants with LazyLogging {
 
     groupedMovies.foreach(movies => {
       val future = postItem(movies)
-      Await.ready(future, 30.seconds)
+      Await.ready(future, 300.seconds)
       println(future.value.get)
     })
   }
@@ -162,7 +162,7 @@ object MovielensDatasetUploader extends App with Constants with LazyLogging {
 
     groupedMovies.foreach(ratings => {
       val future = postRating(ratings)
-      Await.ready(future, 30.seconds)
+      Await.ready(future, 300.seconds)
       println(future.value.get)
     })
 

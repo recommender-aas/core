@@ -1,14 +1,11 @@
 package gr.ml.analytics.service
 
 import com.typesafe.scalalogging.LazyLogging
-import gr.ml.analytics.cassandra.CassandraStorage
+import gr.ml.analytics.cassandra.{CassandraCache, CassandraStorage, Schema}
 
-
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.util.parsing.json.JSONObject
-import scala.concurrent.ExecutionContext.Implicits.global
-import gr.ml.analytics.cassandra.{CassandraStorage, Schema}
-import gr.ml.analytics.cassandra.CassandraCache
 
 class ItemServiceImpl(val inputDatabase:CassandraStorage, val cassandraCache: CassandraCache) extends ItemService with LazyLogging {
 
@@ -18,7 +15,8 @@ class ItemServiceImpl(val inputDatabase:CassandraStorage, val cassandraCache: Ca
     * @inheritdoc
     */
   override def get(schemaId: Int, itemId: Int): Future[Option[Map[String, Any]]] = {
-    val schemaFuture = inputDatabase.schemasModel.getOne(schemaId)
+
+    val schemaFuture = cassandraCache.findSchema(schemaId)
 
     schemaFuture.map {
       case Some(schema) =>

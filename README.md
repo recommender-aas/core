@@ -3,6 +3,8 @@ his rating history.
 
 System receives user ratings via REST API from customer's web-sites/mobile clients and stores it as input for background machine learning jobs.
 
+**[Link to REST API](http://172.104.136.67:18080/swagger)**
+
 2 separate pipelines are used for making predictions: 
 
 1. **Content-based** (based on item feature values)

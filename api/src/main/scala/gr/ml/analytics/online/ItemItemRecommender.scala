@@ -4,10 +4,8 @@ import com.typesafe.scalalogging.LazyLogging
 import gr.ml.analytics.online.cassandra.{OnlineCassandraStorage, Similarity, SimilarityIndex, User}
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.{Await, Future}
-import scala.concurrent.duration._
+import scala.concurrent.Future
 import scala.math.{Ordering, min, sqrt}
-import scala.util.{Failure, Success}
 
 class ItemItemRecommender(storage: OnlineCassandraStorage) extends LazyLogging {
 
@@ -67,7 +65,7 @@ class ItemItemRecommender(storage: OnlineCassandraStorage) extends LazyLogging {
   }
 
   private def updatePair(eventItemId: String, currentItemWeight: Double, newItemWeight: Double,
-                 newItemCount: Double, anotherItem: (String, Double)): Future[_] = {
+                         newItemCount: Double, anotherItem: (String, Double)): Future[_] = {
     val anotherItemId = anotherItem._1
     val anotherItemWeight = anotherItem._2
     updatePairCount(eventItemId, currentItemWeight, newItemWeight, newItemCount, anotherItemId, anotherItemWeight)
@@ -77,7 +75,7 @@ class ItemItemRecommender(storage: OnlineCassandraStorage) extends LazyLogging {
     Ordering[String].min(firstItemId, secondItemId) + "_" + Ordering[String].max(firstItemId, secondItemId)
 
   private def updatePairCount(eventItemId: String, currentItemWeight: Double, newItemWeight: Double,
-                      newItemCount: Double, anotherItemId: String, anotherItemWeight: Double): Future[_] = {
+                              newItemCount: Double, anotherItemId: String, anotherItemWeight: Double): Future[_] = {
 
     val deltaCoRating = {
       if (currentItemWeight == 0) min(newItemWeight, anotherItemWeight)
@@ -129,16 +127,17 @@ class ItemItemRecommender(storage: OnlineCassandraStorage) extends LazyLogging {
     storage.similaritiesIndex.getById(pairId).flatMap {
       case Some(currentSimilarity) =>
         Future.sequence(
-          Seq(storage.similarities.deleteRow(Similarity(firstItem, secondItem, currentSimilarity.similarity)),
-        storage.similarities.deleteRow(Similarity(secondItem, firstItem, currentSimilarity.similarity)),
-        storage.similarities.store(Similarity(firstItem, secondItem, similarity)),
-        storage.similarities.store(Similarity(secondItem, firstItem, similarity)),
-        storage.similaritiesIndex.store(SimilarityIndex(pairId, similarity))))
+          Seq(
+            storage.similarities.updateSimilarity(Similarity(firstItem, secondItem, similarity)),
+            storage.similarities.updateSimilarity(Similarity(secondItem, firstItem, similarity)),
+            storage.similaritiesIndex.updateSimilarity(SimilarityIndex(pairId, similarity))))
 
       case None =>
-        Future.sequence(Seq(storage.similarities.store(Similarity(firstItem, secondItem, similarity)),
-          storage.similarities.store(Similarity(secondItem, firstItem, similarity)),
-          storage.similaritiesIndex.store(SimilarityIndex(pairId, similarity))))
+        Future.sequence(
+          Seq(
+            storage.similarities.store(Similarity(firstItem, secondItem, similarity)),
+            storage.similarities.store(Similarity(secondItem, firstItem, similarity)),
+            storage.similaritiesIndex.store(SimilarityIndex(pairId, similarity))))
     }
   }
 

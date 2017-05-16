@@ -39,6 +39,14 @@ abstract class Similarities extends SimilaritiesTable with RootConnector {
           .future()
   }
 
+  def updateSimilarity(similarity: Similarity): Future[ResultSet] = {
+    update
+      .where(_.itemId eqs similarity.itemId)
+      .and(_.anotherItemId eqs similarity.anotherItemId)
+      .modify(_.similarity setTo similarity.similarity)
+      .future()
+  }
+
   def deleteRow(similarity: Similarity): Future[ResultSet] = {
     delete.where(_.itemId eqs similarity.itemId)
             .and(_.similarity eqs similarity.similarity)

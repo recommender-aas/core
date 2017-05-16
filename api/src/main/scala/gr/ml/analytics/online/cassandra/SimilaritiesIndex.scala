@@ -35,6 +35,13 @@ abstract class SimilaritiesIndex extends SimilaritiesIndexTable with RootConnect
       .future()
   }
 
+  def updateSimilarity(similarityIndex: SimilarityIndex): Future[ResultSet] = {
+    update
+      .where(_.pairId eqs similarityIndex.pairId)
+      .modify(_.similarity setTo similarityIndex.similarity)
+      .future()
+  }
+
   def getById(pairId: String): Future[Option[SimilarityIndex]] = {
     select.where(_.pairId eqs pairId).one()
   }

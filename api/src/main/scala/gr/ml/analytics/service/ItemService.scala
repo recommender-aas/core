@@ -1,5 +1,7 @@
 package gr.ml.analytics.service
 
+import java.util.UUID
+
 import scala.concurrent.Future
 
 trait ItemService {
@@ -10,7 +12,7 @@ trait ItemService {
     * @param itemId item id
     * @return item entity
     */
-  def get(schemaId: Int, itemId: Int): Future[Option[Map[String, Any]]]
+  def get(schemaId: UUID, itemId: Int): Future[Option[Map[String, Any]]]
 
   /**
     * Get multiple items by their ids
@@ -18,7 +20,7 @@ trait ItemService {
     * @param itemIds list of ids
     * @return list of items
     */
-  def get(schemaId: Int, itemIds: List[Int]): Future[List[Option[Map[String, Any]]]]
+  def get(schemaId: UUID, itemIds: List[Int]): Future[List[Option[Map[String, Any]]]]
 
   /**
     * Stores item
@@ -26,6 +28,6 @@ trait ItemService {
     * @param item the item to be stored
     * @return the id of newly created item
     */
-  def save(schemaId: Int, item: Map[String, Any]): Future[Option[Int]]
+  def save(schemaId: UUID, item: Map[String, Any]): Future[Option[Int]]
 }
 

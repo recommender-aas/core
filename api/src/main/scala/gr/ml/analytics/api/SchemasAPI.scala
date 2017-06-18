@@ -1,84 +1,47 @@
 package gr.ml.analytics.api
 
+import java.util.UUID
 import javax.ws.rs.Path
 
 import akka.http.scaladsl.model.StatusCodes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import gr.ml.analytics.service.SchemaService
+import com.typesafe.scalalogging.LazyLogging
+import gr.ml.analytics.cassandra.Schema
+import gr.ml.analytics.service.{SchemaService, Util}
 import io.swagger.annotations._
-import spray.json.{JsArray, JsFalse, JsNumber, JsObject, JsString, JsTrue, JsValue, JsonFormat, RootJsonFormat}
+import spray.json.{JsArray, JsObject, JsString, JsValue, JsonFormat}
 
-import scala.annotation.meta.field
 import scala.util.{Failure, Success, Try}
 
-/*
 
-Example schema:
-
-{
-	"id": {
-		"name": "movieId",
-		"type": "Int"
-	},
-	"features": [
-	  {
-		  "name": "title",
-		  "type": "text"
-	  },
-	  {
-		  "name": "genres",
-		  "type": "text"
-	  }
-	]
-}
-
- */
 @Api(value = "Schemas", produces = "application/json", consumes = "application/json")
 @Path("/schemas")
-class SchemasAPI(schemaService: SchemaService) {
+class SchemasAPI(schemaService: SchemaService) extends LazyLogging {
 
-  val route: Route = postSchema ~ getSchema
+  val route: Route = postSchema ~ getSchema ~ getSchemas
 
   import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport._
   import spray.json.DefaultJsonProtocol._
 
-  @ApiModel(description = "Schema object")
-  case class SchemaView(
-                     @(ApiModelProperty @field)(value = "unique identifier for the schema")
-                     schemaId: Int,
-                     @(ApiModelProperty @field)(value = "json definition of the schema")
-                     jsonSchema: Map[String, Any])
-
-  implicit val schemaFormat: RootJsonFormat[SchemaView] = jsonFormat2(SchemaView.apply)
-
-//  implicit val anyJsonFormat: RootJsonFormat[Map[String, Any]] = AnyJsonFormat
-
   implicit val anyFormat: JsonFormat[Any] = AnyJsonFormat
   implicit object AnyJsonFormat extends JsonFormat[Any] {
     def write(x: Any) = x match {
-      case n: Int => JsNumber(n)
+      case u: UUID => JsString(u.toString)
       case s: String => JsString(s)
       case x: Seq[_] => seqFormat[Any].write(x)
       case m: Map[String, _] => mapFormat[String, Any].write(m)
-      case b: Boolean if b == true => JsTrue
-      case b: Boolean if b == false => JsFalse
-      case x => throw new RuntimeException
     }
     def read(value: JsValue) = value match {
-      case JsNumber(n) => n.intValue()
       case JsString(s) => s
       case a: JsArray => listFormat[Any].read(value)
       case o: JsObject => mapFormat[String, Any].read(value)
-      case JsTrue => true
-      case JsFalse => false
-      case x => throw new RuntimeException
     }
   }
 
   @ApiOperation(httpMethod = "POST", value = "Create schema")
   @ApiImplicitParams(Array(
-    new ApiImplicitParam(name = "body", value = "Schema definition", required = true, paramType = "body", dataType = "gr.ml.analytics.api.SchemasAPI$SchemaView")
+    new ApiImplicitParam(name = "body", value = "Schema definition", required = true, paramType = "body")
   ))
   @ApiResponses(Array(
     new ApiResponse(code = 201, message = "Schema has been created"),
@@ -87,21 +50,42 @@ class SchemasAPI(schemaService: SchemaService) {
   def postSchema: Route =
     path("schemas") {
       post {
-        entity(as[Map[String, Any]]) { schema =>
+        entity(as[Map[String, Any]]) { jsonSchema =>
+          val schemaId = UUID.randomUUID()
+          val schema = Schema(schemaId, jsonSchema)
+
           Try {
+            val normalizedStringSchema = Util.schemaToString(jsonSchema)
+
+            logger.info(s"Saving $normalizedStringSchema")
+
             schemaService.save(schema)
           } match {
-            case Success(schemaId) => complete(StatusCodes.Created, schemaId.toString)
-            case Failure(ex) => complete(StatusCodes.InternalServerError, s"Not created: ${ex.getMessage}")
+            case Success(schemaId) => complete(StatusCodes.Created, schemaView(schema))
+            case Failure(ex) => complete(StatusCodes.BadRequest, s"Not created: ${ex.getMessage}")
           }
 
         }
       }
     }
 
-  @ApiOperation(httpMethod = "GET", response = classOf[SchemaView], value = "Get schema by id")
+  @ApiOperation(httpMethod = "GET", response = classOf[Map[String, Any]], value = "Get all schemas")
+  @ApiResponses(Array(
+    new ApiResponse(code = 200, message = "Ok"),
+    new ApiResponse(code = 400, message = "Bad request")
+  ))
+  def getSchemas: Route =
+    path("schemas") {
+      get {
+        onSuccess(schemaService.getAll) { res =>
+          complete(StatusCodes.OK, res.map(schemaView))
+        }
+      }
+    }
+
+  @ApiOperation(httpMethod = "GET", response = classOf[Map[String, Any]], value = "Get schema by id")
   @ApiImplicitParams(Array(
-    new ApiImplicitParam(name = "schemaId", required = true, dataType = "integer", paramType = "path", value = "schema id")
+    new ApiImplicitParam(name = "schemaId", required = true, dataType = "string", paramType = "path", value = "schema id")
   ))
   @ApiResponses(Array(
     new ApiResponse(code = 200, message = "Ok"),
@@ -109,14 +93,20 @@ class SchemasAPI(schemaService: SchemaService) {
     new ApiResponse(code = 404, message = "Schema not found")))
   @Path("/{schemaId}")
   def getSchema: Route =
-    path("schemas" / IntNumber) { schemaId =>
+    path("schemas" / JavaUUID) { schemaId =>
       get {
         onSuccess(schemaService.get(schemaId)) {
 
-          case Some(schema: SchemaView) =>
-            complete(StatusCodes.OK, schema.jsonSchema)
+          case Some(schema: Schema) =>
+            complete(StatusCodes.OK, schemaView(schema))
           case None => complete(StatusCodes.NotFound)
         }
       }
     }
+
+  private def schemaView(schema: Schema): Map[String, Any] =
+    Map[String, Any](
+      "id" -> schema.schemaId,
+      "schema" -> schema.jsonSchema
+    )
 }

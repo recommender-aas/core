@@ -15,9 +15,6 @@ import gr.ml.analytics.online.cassandra.OnlineCassandraStorage
 import gr.ml.analytics.online.{ItemItemRecommender, OnlineLearningActor}
 import gr.ml.analytics.service._
 
-import scala.io.StdIn
-
-
 /**
   * Application entry point
   */
@@ -87,11 +84,14 @@ object Application extends App {
     interface = serviceListenerInterface,
     port = serviceListenerPort)
 
-  StdIn.readLine() // let it run until user presses return
 
-  List(recommenderAPIBindingFuture)
-    .foreach(_.flatMap(_.unbind()) // trigger unbinding from the port
-    .onComplete(_ ⇒ system.terminate())) // and shutdown when done
+  Runtime.getRuntime.addShutdownHook(new Thread() {
+    override def run(): Unit = {
+      List(recommenderAPIBindingFuture)
+        .foreach(_.flatMap(_.unbind()) // trigger unbinding from the port
+          .onComplete(_ ⇒ system.terminate())) // and shutdown when done
+      log.info("Stopped")
+    }
+  })
 
-  log.info("Stopped")
 }

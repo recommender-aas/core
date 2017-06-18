@@ -7,7 +7,7 @@ import gr.ml.analytics.service.Util
 import scala.concurrent.Future
 
 case class Schema(
-                   schemaId: Int,
+                   schemaId: java.util.UUID,
                    jsonSchema: Map[String, Any])
 
 /**
@@ -17,7 +17,7 @@ class SchemaModel extends CassandraTable[ConcreteSchemaModel, Schema] {
 
   override def tableName: String = "schemas"
 
-  object schemaId extends IntColumn(this) with PartitionKey
+  object schemaId extends UUIDColumn(this) with PartitionKey
 
   object jsonSchema extends StringColumn(this)
 
@@ -35,7 +35,7 @@ abstract class ConcreteSchemaModel extends SchemaModel with RootConnector {
       .fetch
   }
 
-  def getOne(schemaId: Int): Future[Option[Schema]] = {
+  def getOne(schemaId: UUID): Future[Option[Schema]] = {
     select
       .where(_.schemaId eqs schemaId)
       .consistencyLevel_=(ConsistencyLevel.ONE)

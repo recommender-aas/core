@@ -2,13 +2,12 @@ package gr.ml.analytics.online.cassandra
 
 import com.outworkers.phantom.dsl._
 
-import scala.concurrent.{Await, Future}
-import scala.concurrent.duration._
+import scala.concurrent.Future
 
-case class ItemCount (
-                     itemId: String,
-                     count: Double
-                     )
+case class ItemCount(
+                      itemId: String,
+                      count: Double
+                    )
 
 
 class ItemCountsTable extends CassandraTable[ItemCounts, ItemCount] {
@@ -16,6 +15,7 @@ class ItemCountsTable extends CassandraTable[ItemCounts, ItemCount] {
   override def tableName: String = "item_counts_table"
 
   object itemId extends StringColumn(this) with PartitionKey
+
   object count extends DoubleColumn(this)
 
   override def fromRow(row: Row): ItemCount = {
@@ -35,7 +35,10 @@ abstract class ItemCounts extends ItemCountsTable with RootConnector {
   }
 
   def getById(id: String): Future[Option[ItemCount]] = {
-    select.where(_.itemId eqs id).one()
+    select
+      .where(_.itemId eqs id)
+      .consistencyLevel_=(ConsistencyLevel.ALL)
+      .one()
   }
 
   def setCount(itemId: String, count: Double): Future[ResultSet] = {
@@ -51,3 +54,4 @@ abstract class ItemCounts extends ItemCountsTable with RootConnector {
   }
 
 }
+

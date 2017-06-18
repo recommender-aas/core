@@ -12,15 +12,15 @@ services:
       cassandra_network:
         ipv4_address: 172.25.0.101
 
-#  cassandra-node:
-#    image: cassandra
-#    restart: always
-#    links:
-#      - cassandra-seed1:seed1
-#    environment:
-#      - CASSANDRA_SEEDS=seed1
-#    networks:
-#      - cassandra_network
+  cassandra-node:
+    image: cassandra
+    restart: always
+    links:
+      - cassandra-seed1:seed1
+    environment:
+      - CASSANDRA_SEEDS=seed1
+    networks:
+      - cassandra_network
 
   redis:
     image: redis

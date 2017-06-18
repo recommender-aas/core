@@ -19,7 +19,7 @@ import org.apache.spark.sql.SparkSession
 object LocalRunner {
 
   val ITERATIVE = true
-  val INTERVAL_MS = 1000 * 3600  // every hour
+  val INTERVAL_MS = 24 * 3600 * 1000  // every day
 
   def getSparkSession: SparkSession = {
     SparkSession.builder()

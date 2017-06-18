@@ -4,10 +4,10 @@ import com.outworkers.phantom.dsl._
 
 import scala.concurrent.Future
 
-case class PairCount (
-                       pairId: String,
-                       count: Double
-                     )
+case class PairCount(
+                      pairId: String,
+                      count: Double
+                    )
 
 
 class PairCountsTable extends CassandraTable[PairCounts, PairCount] {
@@ -15,6 +15,7 @@ class PairCountsTable extends CassandraTable[PairCounts, PairCount] {
   override def tableName: String = "pair_counts_table"
 
   object pairId extends StringColumn(this) with PartitionKey
+
   object count extends DoubleColumn(this)
 
   override def fromRow(row: Row): PairCount = {
@@ -34,7 +35,9 @@ abstract class PairCounts extends PairCountsTable with RootConnector {
   }
 
   def getById(id: String): Future[Option[PairCount]] = {
-    select.where(_.pairId eqs id).one()
+    select.where(_.pairId eqs id)
+      .consistencyLevel_=(ConsistencyLevel.ALL)
+      .one()
   }
 
   def incrementCount(pairId: String, deltaWeight: Double): Future[_] = {

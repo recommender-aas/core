@@ -1,5 +1,7 @@
 package gr.ml.analytics.service
 
+import java.util.UUID
+
 import scala.util.parsing.json.{JSON, JSONArray, JSONObject}
 
 object Util {
@@ -46,6 +48,6 @@ object Util {
     }
   }
 
-  def itemsTableName(schemaId: Int): String = s"items_$schemaId"
+  def itemsTableName(schemaId: UUID): String = s"items_${schemaId.toString.replace('-', '_')}"
 
 }

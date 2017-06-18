@@ -1,7 +1,6 @@
 package gr.ml.analytics.online
 
 import com.outworkers.phantom.connectors.{CassandraConnection, ContactPoints}
-import gr.ml.analytics.cassandra.CassandraStorage
 import gr.ml.analytics.online.cassandra._
 import org.cassandraunit.utils.EmbeddedCassandraServerHelper
 import org.specs2.concurrent.ExecutionEnv
@@ -46,6 +45,25 @@ class ItemItemSpec extends Specification with BeforeAfterAll {
     )
 
 
+    /*
+
+        val events =
+      Interaction("u5", "i1", weightsMap("share"), System.currentTimeMillis / 1000) ::
+      Interaction("u5", "i2", weightsMap("hover"), System.currentTimeMillis / 1000) ::
+      Interaction("u5", "i4", weightsMap("buy"), System.currentTimeMillis / 1000) ::
+        Interaction("u1", "i1", weightsMap("buy"), System.currentTimeMillis / 1000) ::
+        Interaction("u1", "i2", weightsMap("like"), System.currentTimeMillis / 1000) ::
+        Interaction("u1", "i4", weightsMap("click"), System.currentTimeMillis / 1000) ::
+        Interaction("u4", "i2", weightsMap("like"), System.currentTimeMillis / 1000) ::
+        Interaction("u4", "i3", weightsMap("buy"), System.currentTimeMillis / 1000) ::
+        Interaction("u4", "i5", weightsMap("click"), System.currentTimeMillis / 1000) ::
+        Interaction("u3", "i1", weightsMap("click"), System.currentTimeMillis / 1000) ::
+        Interaction("u3", "i4", weightsMap("click"), System.currentTimeMillis / 1000) ::
+    Interaction("u2", "i2", weightsMap("share"), System.currentTimeMillis / 1000) ::
+        Interaction("u2", "i3", weightsMap("like"), System.currentTimeMillis / 1000) ::
+        Interaction("u2", "i5", weightsMap("hover"), System.currentTimeMillis / 1000) ::
+    Nil
+     */
 
     val events =
       Interaction("u1", "i1", weightsMap("buy"), System.currentTimeMillis / 1000) ::
@@ -62,12 +80,12 @@ class ItemItemSpec extends Specification with BeforeAfterAll {
       Interaction("u5", "i1", weightsMap("share"), System.currentTimeMillis / 1000) ::
       Interaction("u5", "i2", weightsMap("hover"), System.currentTimeMillis / 1000) ::
       Interaction("u5", "i4", weightsMap("buy"), System.currentTimeMillis / 1000) ::
-      Nil
+    Nil
 
     for (event <- events) {
-      Await.ready(recommender.learn(event), 5.seconds)
+      Await.ready(recommender.learn(event), 500000.seconds)
     }
-
+//    recommender.learn(events)
   }
 
   def afterAll(): Unit = {

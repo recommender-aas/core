@@ -37,7 +37,6 @@ abstract class Users extends UsersTable with RootConnector {
 
   def getById(id: String): Future[Option[User]] = {
     select
-      .consistencyLevel_=(ConsistencyLevel.ALL)
       .where(_.id eqs id).one()
   }
 }

@@ -1,5 +1,6 @@
 package gr.ml.analytics.api
 
+import java.util.UUID
 import javax.ws.rs.Path
 
 import akka.http.scaladsl.model.StatusCodes
@@ -10,6 +11,7 @@ import spray.json.{JsArray, JsFalse, JsNumber, JsObject, JsString, JsTrue, JsVal
 import scala.concurrent.Future
 import gr.ml.analytics.service.ItemService
 import io.swagger.annotations._
+
 import scala.concurrent.ExecutionContext.Implicits.global
 
 
@@ -59,7 +61,7 @@ class ItemsAPI(val itemService: ItemService) {
     new ApiResponse(code = 400, message = "Bad request"),
     new ApiResponse(code = 404, message = "Schema not found")))
   def postItems: Route =
-    path("schemas" / IntNumber / "items") { schemaId =>
+    path("schemas" / JavaUUID / "items") { schemaId =>
       post {
         entity(as[List[ItemView]]) { items =>
 
@@ -82,7 +84,7 @@ class ItemsAPI(val itemService: ItemService) {
     new ApiResponse(code = 404, message = "Item or schema not found")))
   @Path("/{itemId}")
   def getItem: Route =
-    path("schemas" / IntNumber / "items" / IntNumber) { (schemaId: Int, itemId: Int) =>
+    path("schemas" / JavaUUID / "items" / IntNumber) { (schemaId: UUID, itemId: Int) =>
       get {
         onSuccess(itemService.get(schemaId, itemId)) {
           case Some(item: ItemView) => complete(item)

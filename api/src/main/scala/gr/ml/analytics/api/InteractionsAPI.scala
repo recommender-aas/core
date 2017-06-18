@@ -67,7 +67,7 @@ class InteractionsAPI(val ratingService: RatingService, val actionService: Actio
               // action or rating must exist for every interaction in a batch
               if (list.forall(_._2.isDefined)) {
 
-                list.foreach(element => {
+                val processedInterractions = list.map(element => {
                   val weight: Double = element._2.get
                   val userId = element._1.userId
                   val itemId = element._1.itemId
@@ -79,15 +79,16 @@ class InteractionsAPI(val ratingService: RatingService, val actionService: Actio
                     weight,
                     timestamp)
 
-                  // online learning
-                  if (onlineModelActorOption.isDefined) {
-                    onlineModelActorOption.get ! interaction
-                  }
-
                   // batch learning
-                  ratingService.save(userId, itemId, weight, timestamp)
+//                  ratingService.save(userId, itemId, weight, timestamp)
 
+                  interaction
                 })
+
+                // online learning
+                if (onlineModelActorOption.isDefined) {
+                  onlineModelActorOption.get ! processedInterractions
+                }
 
                 complete(StatusCodes.Created)
               } else {

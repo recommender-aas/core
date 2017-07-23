@@ -35,7 +35,7 @@ val buildInfoSettings = Seq(
 val akkaVersion = "2.4.17"
 val akkaHttpVersion = "10.0.5"
 val phantomVersion = "2.7.5"
-val sparkVersion = "2.0.1"
+val sparkVersion = "2.2.0"
 
 // module structure configuration
 
@@ -49,7 +49,8 @@ lazy val root = project.in(file("."))
         |set of modules related to the project.
       """.stripMargin
   )
-  .aggregate(service, api, common, demo)
+  .aggregate(batch, api, common, service, demo)
+  .dependsOn(batch, api, common, service, demo)
 
 
 lazy val common = project.in(file("common"))
@@ -90,7 +91,7 @@ lazy val api = project.in(file("api"))
     ),
     // swagger support
     libraryDependencies += "co.pragmati" %% "swagger-ui-akka-http" % "1.0.0",
-//    libraryDependencies += "io.swagger" % "swagger-jaxrs" % "1.5.13",
+    //    libraryDependencies += "io.swagger" % "swagger-jaxrs" % "1.5.13",
     libraryDependencies += "com.github.swagger-akka-http" %% "swagger-akka-http" % "0.9.1",
     libraryDependencies += "com.github.nscala-time" %% "nscala-time" % "2.14.0",
     libraryDependencies += "com.outworkers" %% "phantom-dsl" % phantomVersion,
@@ -107,6 +108,48 @@ lazy val api = project.in(file("api"))
     libraryDependencies += "org.specs2" %% "specs2-core" % "3.8.9" % "test"
   )
   .dependsOn(common)
+
+
+lazy val batch = project.in(file("batch"))
+  .settings(commonSettings: _*)
+  .settings(buildInfoSettings: _*)
+  .settings(
+    name := "recommender-saas-batch",
+    description :=
+      """
+        |Butch jobs to create models and compute recommendations
+      """.stripMargin,
+    mainClass in assembly := Some("gr.ml.analytics.LocalRunner"),
+    assemblyJarName in assembly := "batch.jar"
+  )
+  .settings(
+    resolvers ++= Seq(
+      "Typesafe Repository" at "http://repo.typesafe.com/typesafe/releases/",
+      "Spray Repository" at "http://repo.spray.io",
+      "Spark Packages Repo" at "https://dl.bintray.com/spark-packages/maven"
+    ),
+
+    libraryDependencies ++= Seq(
+      "org.apache.spark" %% "spark-sql" % sparkVersion,
+      "org.apache.spark" %% "spark-core" % sparkVersion,
+      "org.apache.spark" %% "spark-mllib" % sparkVersion
+    ),
+    libraryDependencies += "datastax" % "spark-cassandra-connector" % "2.0.1-s_2.11",
+    libraryDependencies += "com.typesafe" % "config" % "1.3.1",
+    libraryDependencies += "com.typesafe.scala-logging" %% "scala-logging" % "3.5.0",
+    libraryDependencies += "ch.qos.logback" % "logback-classic" % "1.1.7",
+//    libraryDependencies += "com.github.tototoshi" %% "scala-csv" % "1.3.0",
+    libraryDependencies += "net.debasishg" %% "redisclient" % "3.4",
+
+    libraryDependencies += "org.cassandraunit" % "cassandra-unit" % "3.1.3.2" % "test",
+//    libraryDependencies += "org.specs2" %% "specs2" % "2.3.13" % "test",
+    libraryDependencies += "org.scalatest" % "scalatest_2.11" % "3.0.1" % "test"
+//    libraryDependencies += "org.specs2" %% "specs2-core" % "3.9.1" % "test",
+//    scalacOptions in Test ++= Seq("-Yrangepos")
+  )
+  .dependsOn(common)
+
+
 
 lazy val service = project.in(file("service"))
   .settings(commonSettings: _*)

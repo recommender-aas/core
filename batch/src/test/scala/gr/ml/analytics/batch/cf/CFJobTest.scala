@@ -5,7 +5,7 @@ import java.io.IOException
 import com.datastax.spark.connector.cql.CassandraConnector
 import com.typesafe.config.ConfigFactory
 import org.apache.spark.SparkConf
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.cassandra._
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.{DoubleType, IntegerType, LongType}
@@ -21,6 +21,7 @@ class CFJobTest extends FunSuite with StaticConfig {
   val sparkConf = new SparkConf()
     .set("spark.cassandra.connection.host", host)
     .set("spark.cassandra.connection.port", port.toString)
+//    .set("spark.sql.crossJoin.enabled", "true")
 
   implicit val sparkSession: SparkSession = getSparkSession(sparkConf)
 
@@ -41,11 +42,13 @@ class CFJobTest extends FunSuite with StaticConfig {
     "cf_reg_param" -> 1.0
   )
 
-  val job = CFJob(config, alsParams)
+  def testUserPredicateFunction(ratingsDF: DataFrame): Set[Int] = Set(1, 7, 8, 10)
+
+  val job = CFJob(config, testUserPredicateFunction, alsParams)
 
   CassandraConnector(sparkSession.sparkContext).withSessionDo { session =>
     session.execute(s"CREATE KEYSPACE IF NOT EXISTS $keyspace WITH replication={'class':'SimpleStrategy', 'replication_factor':1}")
-    session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$ratingsTable (key text PRIMARY KEY, $userIdCol int, $itemIdCol int, $ratingCol float, $timestampCol bigint)")
+    session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$ratingsTable ($ratingsKeyCol text PRIMARY KEY, $userIdCol int, $itemIdCol int, $ratingCol float, $timestampCol bigint)")
     session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$recommendationsTable ($userIdCol int PRIMARY KEY, $recommendedItemIdsCol text, $timestampCol bigint)")
   }
 
@@ -59,9 +62,9 @@ class CFJobTest extends FunSuite with StaticConfig {
         col(itemIdCol).cast(IntegerType),
         col(ratingCol).cast(DoubleType),
         col(timestampCol).cast(LongType))
-      .withColumn("key", concat(col(userIdCol), lit(":"), col(itemIdCol)))
+      .withColumn(ratingsKeyCol, concat(col(userIdCol), lit(":"), col(itemIdCol)))
 
-    ratingsDF.select("key", userIdCol, itemIdCol, ratingCol, timestampCol)
+    ratingsDF.select(ratingsKeyCol, userIdCol, itemIdCol, ratingCol, timestampCol)
       .write.mode("overwrite")
       .cassandraFormat(ratingsTable, keyspace)
       .save()
@@ -71,7 +74,7 @@ class CFJobTest extends FunSuite with StaticConfig {
       .format("org.apache.spark.sql.cassandra")
       .options(Map("table" -> ratingsTable, "keyspace" -> keyspace))
       .load()
-      .select(userIdCol, itemIdCol, ratingCol, timestampCol).collect().length
+      .select(ratingsKeyCol, userIdCol, itemIdCol, ratingCol, timestampCol).collect().length
     assert(storedSize === 79)
 
     val elapsedSec = TestUtil.timed(() => job.run())

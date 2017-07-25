@@ -8,7 +8,7 @@ import org.apache.spark.SparkConf
 import org.apache.spark.sql.{DataFrame, SparkSession}
 import org.apache.spark.sql.cassandra._
 import org.apache.spark.sql.functions._
-import org.apache.spark.sql.types.{DoubleType, IntegerType, LongType}
+import org.apache.spark.sql.types.{DoubleType, IntegerType, LongType, StringType}
 import org.cassandraunit.utils.EmbeddedCassandraServerHelper
 import org.scalatest.FunSuite
 
@@ -42,14 +42,14 @@ class CFJobTest extends FunSuite with StaticConfig {
     "cf_reg_param" -> 1.0
   )
 
-  def testUserPredicateFunction(ratingsDF: DataFrame): Set[Int] = Set(1, 7, 8, 10)
+  def testUserPredicateFunction(ratingsDF: DataFrame): Set[String] = Set("1a", "7a", "8a", "10a")
 
   val job = CFJob(config, testUserPredicateFunction, alsParams)
 
   CassandraConnector(sparkSession.sparkContext).withSessionDo { session =>
     session.execute(s"CREATE KEYSPACE IF NOT EXISTS $keyspace WITH replication={'class':'SimpleStrategy', 'replication_factor':1}")
-    session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$ratingsTable ($ratingsKeyCol text PRIMARY KEY, $userIdCol int, $itemIdCol int, $ratingCol float, $timestampCol bigint)")
-    session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$recommendationsTable ($userIdCol int PRIMARY KEY, $recommendedItemIdsCol text, $timestampCol bigint)")
+    session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$ratingsTable ($ratingsKeyCol varchar PRIMARY KEY, $userIdCol varchar, $itemIdCol varchar, $ratingCol float, $timestampCol bigint)")
+    session.execute(s"CREATE TABLE IF NOT EXISTS $keyspace.$recommendationsTable ($userIdCol varchar PRIMARY KEY, $recommendedItemIdsCol text, $timestampCol bigint)")
   }
 
 
@@ -58,8 +58,8 @@ class CFJobTest extends FunSuite with StaticConfig {
       .option("header", "true")
       .csv(getFileWithUtil("ratings.csv").get)
       .select(
-        col(userIdCol).cast(IntegerType),
-        col(itemIdCol).cast(IntegerType),
+        col(userIdCol).cast(StringType),
+        col(itemIdCol).cast(StringType),
         col(ratingCol).cast(DoubleType),
         col(timestampCol).cast(LongType))
       .withColumn(ratingsKeyCol, concat(col(userIdCol), lit(":"), col(itemIdCol)))
@@ -88,15 +88,15 @@ class CFJobTest extends FunSuite with StaticConfig {
 
     recommendationsDF.show(100)
 
-    val recommendations: Map[Int, (List[Int], Long)] = recommendationsDF.collect
-      .map(row => (row.getAs[Int](userIdCol), (row.getAs[String](recommendedItemIdsCol).split(":").map(_.toInt).toList, row.getAs[Long](timestampCol))))
+    val recommendations: Map[String, (List[String], Long)] = recommendationsDF.collect
+      .map(row => (row.getAs[String](userIdCol), (row.getAs[String](recommendedItemIdsCol).split(":").toList, row.getAs[Long](timestampCol))))
       .toMap
 
     val expectedResult = Map(
-      1 -> (List(11, 9, 10, 12, 14, 15, 13), 1000000007),
-      7 -> (List(1, 4, 6, 5, 15, 3, 2), 1000000055),
-      8 -> (List(7, 1, 6, 4, 5, 3, 2), 1000000063),
-      10 -> (List(6, 10, 9, 5, 3, 2), 1000000078)
+      "1a" -> (List("11b", "9b", "10b", "12b", "14b", "15b", "13b"), 1000000007),
+      "7a" -> (List("1b", "4b", "6b", "5b", "15b", "3b", "2b"), 1000000055),
+      "8a" -> (List("7b", "1b", "6b", "4b", "5b", "3b", "2b"), 1000000063),
+      "10a" -> (List("6b", "10b", "9b", "5b", "3b", "2b"), 1000000078)
     )
 
     expectedResult.foreach(pair => {

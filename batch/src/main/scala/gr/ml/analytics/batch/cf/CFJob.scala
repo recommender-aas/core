@@ -2,15 +2,19 @@ package gr.ml.analytics.batch.cf
 
 import com.datastax.spark.connector.cql.CassandraConnector
 import com.typesafe.config.Config
+import org.apache.spark.ml.feature.StringIndexer
 import org.apache.spark.ml.recommendation.ALS
 import org.apache.spark.sql.cassandra._
 import org.apache.spark.sql.functions._
+import org.apache.spark.sql.types.DoubleType
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
 
 trait StaticConfig {
   val userIdCol = "userid"
   val itemIdCol = "itemid"
+  val userIdNumCol = "userid_num"
+  val itemIdNumCol = "itemid_num"
   val ratingCol = "rating"
   val timestampCol = "timestamp"
   val predictionCol = "prediction"
@@ -21,19 +25,24 @@ trait StaticConfig {
 
 trait Source {
   /**
-    * @return DataFrame of (userId: Int, itemId: Int, rating: float, timestamp: long) to train model
+    * @return DataFrame of (userId: String, itemId: String, rating: float, timestamp: long) to train model
     */
   def getTrainingRatings: DataFrame
 
   /**
     * @return Set of userIds the performed latest ratings
     */
-  def getUserIds(userPredicateFunc: (DataFrame) => Set[Int]): Set[Int]
+  def getUserIds(userPredicateFunc: (DataFrame) => Set[String]): Set[String]
 }
 
 
 trait Sink {
   def storeRecommendedItemIDs(userId: Int, recommendedItemIds: List[Int], latestTimestamp: Long)
+
+  /**
+    * @param predictionsDF DataFrame of (userId: String, recommended_item_ids: String, timestamp: long)
+    *                      where timestamp is the time of latest user rating used by current model.
+    */
   def storeRecommendedItemIDs(predictionsDF: DataFrame)
 }
 
@@ -51,7 +60,7 @@ class CassandraSource(val keyspace: String,
 
   override def getTrainingRatings: DataFrame = ratingsDF
 
-  override def getUserIds(userPredicateFunc: (DataFrame) => Set[Int]): Set[Int] = userPredicateFunc(ratingsDF)
+  override def getUserIds(userPredicateFunc: (DataFrame) => Set[String]): Set[String] = userPredicateFunc(ratingsDF)
 }
 
 
@@ -79,7 +88,7 @@ class CassandraSink(val keyspace: String,
   */
 class CFJob(val source: Source,
             val sink: Sink,
-            val userPredicateFunc: (DataFrame) => Set[Int],
+            val userPredicateFunc: (DataFrame) => Set[String],
             val params: Map[String, Any])(implicit val sparkSession: SparkSession) extends StaticConfig {
 
   import sparkSession.implicits._
@@ -90,7 +99,21 @@ class CFJob(val source: Source,
   def run(): Unit = {
 
     val trainingRatingsDF = source.getTrainingRatings.select(ratingsKeyCol, userIdCol, itemIdCol, ratingCol, timestampCol)
-    val itemIDsDF = trainingRatingsDF.select(col(itemIdCol)).distinct()
+
+    val userIndexer = new StringIndexer()
+      .setInputCol(userIdCol)
+      .setOutputCol(userIdNumCol)
+    val itemIndexer = new StringIndexer()
+      .setInputCol(itemIdCol)
+      .setOutputCol(itemIdNumCol)
+
+    val userIndexerModel = userIndexer.fit(trainingRatingsDF)
+    val itemIndexerModel = itemIndexer.fit(trainingRatingsDF)
+
+    val trainingRatings1DF = userIndexerModel.transform(trainingRatingsDF)
+    val trainingRatings2DF = itemIndexerModel.transform(trainingRatings1DF)
+
+    val itemIDsDF = trainingRatings2DF.select(col(itemIdNumCol), col(itemIdCol)).distinct()
     val userIds = source.getUserIds(userPredicateFunc)
 
     val minPositiveRatingOption = params.get("cf_min_positive_rating").map(_.toString.toDouble)
@@ -102,28 +125,39 @@ class CFJob(val source: Source,
       .setMaxIter(maxIterParam)
       .setRegParam(regParam)
       .setRank(rank)
-      .setUserCol(userIdCol)
-      .setItemCol(itemIdCol)
+      .setUserCol(userIdNumCol)
+      .setItemCol(itemIdNumCol)
       .setRatingCol(ratingCol)
 
-    val model = als.fit(trainingRatingsDF)
+    val model = als.fit(trainingRatings2DF)
 
-    val userIdDF = userIds.toList.toDF(userIdCol)
-    val usersRatingsDF = trainingRatingsDF
-      .select(userIdCol, itemIdCol, ratingCol, timestampCol, ratingsKeyCol)
-      .as("d1").join(userIdDF.as("d2"), $"d1.$userIdCol" === $"d2.$userIdCol")
-      .select($"d2.$userIdCol", $"d1.$itemIdCol", $"d1.$ratingCol", $"d1.$timestampCol", $"d1.$ratingsKeyCol")
+    val userIdDF = userIndexerModel.transform(userIds.toList.toDF(userIdCol))
+      .select(col(userIdCol), col(userIdNumCol))
+
+    val usersRatingsDF = trainingRatings2DF
+      .select(userIdNumCol, itemIdNumCol, userIdCol, itemIdCol, ratingCol, timestampCol, ratingsKeyCol)
+      .as("d1").join(userIdDF.as("d2"), $"d1.$userIdNumCol" === $"d2.$userIdNumCol")
+      .select($"d1.$itemIdNumCol", $"d1.$userIdNumCol", $"d1.$userIdCol", $"d1.$itemIdCol", $"d1.$ratingCol", $"d1.$timestampCol", $"d1.$ratingsKeyCol")
 
     val userLatestRatingTimestampDF = usersRatingsDF.groupBy(userIdCol).agg(max(timestampCol).as(timestampCol))
 
     val userNotRatedItemsDF = userIdDF
       .crossJoin(itemIDsDF)
       .withColumn(ratingsKeyCol, concat(col(userIdCol), lit(":"), col(itemIdCol)))
-      .except(usersRatingsDF.select(userIdCol, itemIdCol, ratingsKeyCol))
+      .select(userIdNumCol, itemIdNumCol, userIdCol, itemIdCol, ratingsKeyCol)
+      .except(usersRatingsDF.select(userIdNumCol, itemIdNumCol, userIdCol, itemIdCol, ratingsKeyCol))
+      //TODO some bug itemIdNumCol is of StringType so cust
+      .select(
+        col(userIdNumCol).cast(DoubleType),
+        col(itemIdNumCol).cast(DoubleType),
+        col(userIdCol),
+        col(itemIdCol),
+        col(ratingsKeyCol)
+      )
 
     val predictedDF = model.transform(userNotRatedItemsDF)
       .filter(col(predictionCol).isNotNull)
-      .select(ratingsKeyCol, userIdCol, itemIdCol, predictionCol)
+      .select(ratingsKeyCol, userIdNumCol, itemIdNumCol, userIdCol, itemIdCol, predictionCol)
 
     val filteredPredictedDF = minPositiveRatingOption match {
       case Some(minPositiveRating) => predictedDF.filter(col(predictionCol) > minPositiveRating)
@@ -182,7 +216,7 @@ object CFJob extends StaticConfig {
     "cf_reg_param" -> 1.0
   )
 
-  def timestampUserPredicateFunc(timestampOpt: Option[Long])(ratingsDF: DataFrame): Set[Int] = {
+  def timestampUserPredicateFunc(timestampOpt: Option[Long])(ratingsDF: DataFrame): Set[String] = {
     val userIdsDF = timestampOpt match {
       case Some(timestamp) =>
         ratingsDF.filter(col(timestampCol) > timestamp)
@@ -190,11 +224,11 @@ object CFJob extends StaticConfig {
       case None =>
         ratingsDF.select(userIdCol).distinct()
     }
-    userIdsDF.collect().map(r => r.getInt(0)).toSet
+    userIdsDF.collect().map(r => r.getString(0)).toSet
   }
 
   def apply(config: Config,
-            userPredicateFunc: (DataFrame) => Set[Int] = timestampUserPredicateFunc(None),
+            userPredicateFunc: (DataFrame) => Set[String] = timestampUserPredicateFunc(None),
             alsParameters: Map[String, Any] = defaultALSParameters)(implicit sparkSession: SparkSession): CFJob = {
 
     val keyspace: String = config.getString("cassandra.keyspace")

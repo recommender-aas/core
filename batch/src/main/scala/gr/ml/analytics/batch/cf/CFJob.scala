@@ -9,6 +9,8 @@ import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types.DoubleType
 import org.apache.spark.sql.{DataFrame, SparkSession}
 
+import scala.collection.mutable
+
 
 trait StaticConfig {
   val userIdCol = "userid"
@@ -130,6 +132,18 @@ class CFJob(val source: Source,
       .setRatingCol(ratingCol)
 
     val model = als.fit(trainingRatings2DF)
+
+//    val recDF = model.recommendForAllUsers(10)
+//    recDF.show(100)
+//
+//    val userIdMap = userIDsDF.collect().map(row => (row.getAs[Int](userIdNumCol), row.getAs[String](userIdCol))).toMap
+//    val itemIdMap = itemIDsDF.collect().map(row => (row.getAs[Int](itemIdNumCol), row.getAs[String](itemIdCol))).toMap
+//
+//    val recFinalDF = recDF.map(row => {
+//      val uIdNum = row.getAs[Int](userIdNumCol)
+//      val recNum = row.getAs[mutable.WrappedArray[Array[Object]]]("recommendations")
+//      (userIdMap(uIdNum))
+//    })
 
     val userIdDF = userIndexerModel.transform(userIds.toList.toDF(userIdCol))
       .select(col(userIdCol), col(userIdNumCol))

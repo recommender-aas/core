@@ -49,8 +49,8 @@ lazy val root = project.in(file("."))
         |set of modules related to the project.
       """.stripMargin
   )
-  .aggregate(batch, api, common, service, demo)
-  .dependsOn(batch, api, common, service, demo)
+  .aggregate(batch, api, common, service, demo, webconsole)
+  .dependsOn(batch, api, common, service, demo, webconsole)
 
 
 lazy val common = project.in(file("common"))
@@ -60,6 +60,17 @@ lazy val common = project.in(file("common"))
     description :=
       """
         |Common utilities and services shared across modules inside recommender as a service software.
+      """.stripMargin
+  )
+
+
+lazy val webconsole = project.in(file("."))
+  .settings(commonSettings: _*)
+  .settings(
+    name := "recommender-saas",
+    description :=
+      """
+        |Web UI for recommender
       """.stripMargin
   )
 
